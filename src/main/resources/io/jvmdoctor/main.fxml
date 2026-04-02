@@ -95,6 +95,10 @@
                         <fx:include source="deadlock_view.fxml" fx:id="deadlock"/>
                     </Tab>
 
+                    <Tab fx:id="topFramesTab" text="Top Frames">
+                        <fx:include source="top_frames.fxml" fx:id="topFrames"/>
+                    </Tab>
+
                     <!-- Raw Dump 탭: 검색바 + TextArea -->
                     <Tab text="Raw Dump">
                         <VBox spacing="0">

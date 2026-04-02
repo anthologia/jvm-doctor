@@ -31,6 +31,7 @@ public class ThreadTableController implements Initializable {
     private SortedList<ThreadInfo> sortedThreads;
 
     private final Set<String> selectedStates = new HashSet<>();
+    private String frameFilter = null;
 
     private static final List<String> PROBLEM_STATES = List.of("BLOCKED", "WAITING", "TIMED_WAITING");
     private static final Map<String, Integer> STATE_PRIORITY = Map.of(
@@ -120,9 +121,19 @@ public class ThreadTableController implements Initializable {
     public void setThreads(List<ThreadInfo> threads) {
         allThreads.setAll(threads);
         selectedStates.clear();
+        frameFilter = null;
         problemOnlyBtn.setSelected(false);
         filterField.clear();
         rebuildStateChips(threads);
+    }
+
+    /** Top Frames 클릭 시 호출. null이면 프레임 필터 해제. */
+    public void filterByFrame(String frameKey) {
+        this.frameFilter = frameKey;
+        selectedStates.clear();
+        problemOnlyBtn.setSelected(false);
+        syncChipsToSelectedStates();
+        applyFilter(filterField.getText());
     }
 
     /** 파이차트 슬라이스 클릭 시 호출. null이면 필터 해제. */
@@ -181,7 +192,10 @@ public class ThreadTableController implements Initializable {
                     || t.name().toLowerCase().contains(lower)
                     || t.state().toLowerCase().contains(lower)
                     || (t.waitingOnLock() != null && t.waitingOnLock().toString().toLowerCase().contains(lower));
-            return stateMatch && textMatch;
+            boolean frameMatch = frameFilter == null
+                    || (t.stackFrames() != null && t.stackFrames().stream()
+                            .anyMatch(f -> (f.className() + "." + f.methodName()).equals(frameFilter)));
+            return stateMatch && textMatch && frameMatch;
         });
     }
 }

@@ -9,7 +9,6 @@ import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.chart.PieChart;
 import javafx.scene.control.*;
-import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 
 import java.io.File;
@@ -47,6 +46,10 @@ public class MainController implements Initializable {
     // --- Deadlock view (injected sub-controller) ---
     @FXML private DeadlockViewController deadlockViewController;
 
+    // --- Top Frames (injected sub-controller) ---
+    @FXML private TopFramesController topFramesController;
+    @FXML private Tab topFramesTab;
+
     // --- Raw tab ---
     @FXML private TextArea rawTextArea;
     @FXML private TextField rawSearchField;
@@ -61,22 +64,25 @@ public class MainController implements Initializable {
     private String activeStateFilter = null;
 
     private final JstackParser parser = new JstackParser();
+    private final TopFramesAnalyzer topFramesAnalyzer = new TopFramesAnalyzer();
     private final List<Analyzer> analyzers = List.of(
             new DeadlockAnalyzer(),
             new ThreadStateAnalyzer(),
-            new LockContentionAnalyzer()
+            new LockContentionAnalyzer(),
+            topFramesAnalyzer
     );
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
-        navList.setItems(FXCollections.observableArrayList("Summary", "Deadlock", "Threads", "Locks"));
+        navList.setItems(FXCollections.observableArrayList("Summary", "Deadlock", "Threads", "Top Frames", "Locks"));
         navList.getSelectionModel().select(0);
         navList.getSelectionModel().selectedItemProperty().addListener((obs, old, selected) -> {
             if (selected == null) return;
             switch (selected) {
-                case "Deadlock" -> contentTabs.getSelectionModel().select(deadlockTab);
-                case "Threads"  -> contentTabs.getSelectionModel().select(threadsTab);
-                default         -> contentTabs.getSelectionModel().select(0);
+                case "Deadlock"   -> contentTabs.getSelectionModel().select(deadlockTab);
+                case "Threads"    -> contentTabs.getSelectionModel().select(threadsTab);
+                case "Top Frames" -> contentTabs.getSelectionModel().select(topFramesTab);
+                default           -> contentTabs.getSelectionModel().select(0);
             }
         });
 
@@ -159,6 +165,16 @@ public class MainController implements Initializable {
                     updateSummary(dump, reports);
                     threadTableController.setThreads(dump.threads());
                     deadlockViewController.setReports(reports, dump);
+                    topFramesController.setFrames(topFramesAnalyzer.topFrames(dump, 100));
+                    topFramesController.setOnFrameClicked(frameKey -> {
+                        threadTableController.filterByFrame(frameKey);
+                        if (frameKey != null) {
+                            contentTabs.getSelectionModel().select(threadsTab);
+                            updateStatus("Filtered to threads containing: " + frameKey + "  (click again to clear)");
+                        } else {
+                            updateStatus("Frame filter cleared.");
+                        }
+                    });
                     analyzeBtn.setDisable(false);
                     updateStatus("Analysis complete. " + dump.threads().size() + " threads parsed.");
                 });

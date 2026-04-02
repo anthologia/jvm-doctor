@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox xmlns="http://javafx.com/javafx/21"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="io.jvmdoctor.ui.TopFramesController"
+      spacing="6">
+    <padding><Insets top="8" right="12" bottom="8" left="12"/></padding>
+
+    <HBox spacing="8" alignment="CENTER_LEFT">
+        <Label text="Filter:" styleClass="filter-label"/>
+        <TextField fx:id="filterField" promptText="class or method name…" HBox.hgrow="ALWAYS"/>
+        <Label fx:id="statsLabel" text="" styleClass="status-label"/>
+    </HBox>
+
+    <TableView fx:id="framesTable" VBox.vgrow="ALWAYS">
+        <columns>
+            <TableColumn fx:id="methodCol"  text="Class.Method"  prefWidth="280" minWidth="160"/>
+            <TableColumn fx:id="packageCol" text="Package"       prefWidth="220" minWidth="100"/>
+            <TableColumn fx:id="countCol"   text="Threads"       prefWidth="70"
+                         style="-fx-alignment: CENTER_RIGHT;"/>
+            <TableColumn fx:id="pctCol"     text="%"             prefWidth="60"/>
+            <TableColumn fx:id="barCol"     text=""              prefWidth="130" minWidth="80"/>
+        </columns>
+        <placeholder>
+            <Label text="No data yet. Open a thread dump to analyze."/>
+        </placeholder>
+    </TableView>
+
+    <Label text="Click a row to filter the Threads tab to matching threads. Click again to clear."
+           styleClass="filter-label" style="-fx-font-style: italic;"/>
+</VBox>

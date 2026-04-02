@@ -159,6 +159,23 @@
     -fx-background-color: #181825;
 }
 
+/* ─── Top Frames progress bar ───────────────────────────── */
+.frame-progress {
+    -fx-pref-height: 10;
+    -fx-background-color: transparent;
+}
+
+.frame-progress .track {
+    -fx-background-color: #313244;
+    -fx-background-radius: 4;
+}
+
+.frame-progress .bar {
+    -fx-background-color: linear-gradient(to right, #cba6f7, #89b4fa);
+    -fx-background-insets: 1;
+    -fx-background-radius: 3;
+}
+
 /* ─── PieChart ──────────────────────────────────────────── */
 .chart-pie-label {
     -fx-fill: #cdd6f4;

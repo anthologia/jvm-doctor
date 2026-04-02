@@ -54,6 +54,11 @@ public class MainController implements Initializable {
     @FXML private ThreadPoolController threadPoolController;
     @FXML private Tab threadPoolTab;
 
+    // --- Dump Diff (injected sub-controller) ---
+    @FXML private DumpDiffController dumpDiffController;
+    @FXML private Tab dumpDiffTab;
+    @FXML private Button compareDumpsBtn;
+
     // --- Raw tab ---
     @FXML private TextArea rawTextArea;
     @FXML private TextField rawSearchField;
@@ -70,6 +75,7 @@ public class MainController implements Initializable {
     private final JstackParser parser = new JstackParser();
     private final TopFramesAnalyzer topFramesAnalyzer = new TopFramesAnalyzer();
     private final ThreadPoolGrouper poolGrouper = new ThreadPoolGrouper();
+    private final DumpDiffer dumpDiffer = new DumpDiffer();
     private final List<Analyzer> analyzers = List.of(
             new DeadlockAnalyzer(),
             new ThreadStateAnalyzer(),
@@ -79,7 +85,7 @@ public class MainController implements Initializable {
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
-        navList.setItems(FXCollections.observableArrayList("Summary", "Deadlock", "Threads", "Top Frames", "Thread Pools", "Locks"));
+        navList.setItems(FXCollections.observableArrayList("Summary", "Deadlock", "Threads", "Top Frames", "Thread Pools", "Dump Diff", "Locks"));
         navList.getSelectionModel().select(0);
         navList.getSelectionModel().selectedItemProperty().addListener((obs, old, selected) -> {
             if (selected == null) return;
@@ -88,6 +94,7 @@ public class MainController implements Initializable {
                 case "Threads"       -> contentTabs.getSelectionModel().select(threadsTab);
                 case "Top Frames"    -> contentTabs.getSelectionModel().select(topFramesTab);
                 case "Thread Pools"  -> contentTabs.getSelectionModel().select(threadPoolTab);
+                case "Dump Diff"     -> contentTabs.getSelectionModel().select(dumpDiffTab);
                 default              -> contentTabs.getSelectionModel().select(0);
             }
         });
@@ -285,6 +292,42 @@ public class MainController implements Initializable {
             pos++;
         }
         rawMatchLabel.setText(current + " / " + total);
+    }
+
+    @FXML
+    private void onCompareDumps() {
+        if (currentDump == null) {
+            showError("Open and analyze a dump first (this will be the baseline).");
+            return;
+        }
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Open Second Dump (current)");
+        chooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("Text Files", "*.txt", "*.log", "*.dump"),
+                new FileChooser.ExtensionFilter("All Files", "*.*")
+        );
+        File file = chooser.showOpenDialog(compareDumpsBtn.getScene().getWindow());
+        if (file == null) return;
+
+        updateStatus("Comparing dumps…");
+        ThreadDump baseline = currentDump;
+        Thread worker = new Thread(() -> {
+            try {
+                String text = Files.readString(file.toPath());
+                ThreadDump current = parser.parse(text);
+                DumpDiff diff = dumpDiffer.diff(baseline, current);
+                Platform.runLater(() -> {
+                    dumpDiffController.setDiff(diff);
+                    contentTabs.getSelectionModel().select(dumpDiffTab);
+                    updateStatus("Diff complete: +" + diff.addedCount() + " added, -"
+                            + diff.removedCount() + " removed, ~" + diff.changedCount() + " changed.");
+                });
+            } catch (Exception e) {
+                Platform.runLater(() -> showError("Diff error: " + e.getMessage()));
+            }
+        }, "jvm-doctor-differ");
+        worker.setDaemon(true);
+        worker.start();
     }
 
     private void updateStatus(String msg) {

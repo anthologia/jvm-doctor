@@ -19,7 +19,9 @@
             <Button fx:id="openFileBtn"  text="Open File"   onAction="#onOpenFile"  styleClass="toolbar-btn"/>
             <Button fx:id="pasteDumpBtn" text="Paste Text"  onAction="#onPasteDump" styleClass="toolbar-btn"/>
             <Separator orientation="VERTICAL"/>
-            <Button fx:id="analyzeBtn"   text="Analyze"     onAction="#onAnalyze"   styleClass="toolbar-btn, analyze-btn"/>
+            <Button fx:id="analyzeBtn"       text="Analyze"        onAction="#onAnalyze"       styleClass="toolbar-btn, analyze-btn"/>
+            <Separator orientation="VERTICAL"/>
+            <Button fx:id="compareDumpsBtn"  text="Compare Dumps"  onAction="#onCompareDumps"  styleClass="toolbar-btn"/>
         </ToolBar>
     </top>
 
@@ -101,6 +103,10 @@
 
                     <Tab fx:id="threadPoolTab" text="Thread Pools">
                         <fx:include source="thread_pool.fxml" fx:id="threadPool"/>
+                    </Tab>
+
+                    <Tab fx:id="dumpDiffTab" text="Dump Diff">
+                        <fx:include source="dump_diff.fxml" fx:id="dumpDiff"/>
                     </Tab>
 
                     <!-- Raw Dump 탭: 검색바 + TextArea -->

@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<SplitPane orientation="VERTICAL" dividerPositions="0.6"
+           xmlns="http://javafx.com/javafx/21"
+           xmlns:fx="http://javafx.com/fxml/1"
+           fx:controller="io.jvmdoctor.ui.DumpDiffController"
+           style="-fx-background-color: #1e1e2e;">
+
+    <!-- TOP: diff table -->
+    <VBox spacing="6">
+        <padding><Insets top="8" right="12" bottom="4" left="12"/></padding>
+
+        <!-- Summary row -->
+        <Label fx:id="summaryLabel" text="Load two dumps to compare."
+               styleClass="card-title"/>
+
+        <!-- Filter chips + text filter -->
+        <HBox spacing="8" alignment="CENTER_LEFT">
+            <ToggleButton fx:id="showAdded"     text="+ Added"    styleClass="filter-chip, chip-runnable"/>
+            <ToggleButton fx:id="showRemoved"   text="- Removed"  styleClass="filter-chip, chip-blocked"/>
+            <ToggleButton fx:id="showChanged"   text="~ Changed"  styleClass="filter-chip, chip-waiting"/>
+            <ToggleButton fx:id="showUnchanged" text="= Same"     styleClass="filter-chip"/>
+            <TextField fx:id="filterField" promptText="filter by thread name…" HBox.hgrow="ALWAYS"/>
+        </HBox>
+
+        <TableView fx:id="diffTable" VBox.vgrow="ALWAYS">
+            <columns>
+                <TableColumn fx:id="changeCol" text="Change" prefWidth="110" minWidth="90"/>
+                <TableColumn fx:id="nameCol"   text="Thread Name" prefWidth="300" minWidth="150"/>
+                <TableColumn fx:id="beforeCol" text="Before" prefWidth="130" minWidth="80"/>
+                <TableColumn fx:id="afterCol"  text="After"  prefWidth="130" minWidth="80"/>
+            </columns>
+            <placeholder>
+                <Label text="No diff yet. Use 'Compare Dumps' in the toolbar."/>
+            </placeholder>
+        </TableView>
+    </VBox>
+
+    <!-- BOTTOM: thread detail -->
+    <VBox spacing="4">
+        <padding><Insets top="6" right="12" bottom="8" left="12"/></padding>
+        <Label text="THREAD DETAIL" styleClass="section-label"/>
+        <TextArea fx:id="detailArea" styleClass="raw-area" editable="false"
+                  wrapText="false" VBox.vgrow="ALWAYS"
+                  style="-fx-font-family: monospace; -fx-font-size: 12px;"/>
+    </VBox>
+
+</SplitPane>

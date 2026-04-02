@@ -434,3 +434,13 @@
     -fx-border-color: #313244;
     -fx-border-width: 1 0 0 0;
 }
+
+/* ─── Dump Diff ──────────────────────────────────────────── */
+.diff-added    { -fx-text-fill: #a6e3a1; -fx-font-weight: bold; }
+.diff-removed  { -fx-text-fill: #f38ba8; -fx-font-weight: bold; }
+.diff-changed  { -fx-text-fill: #fab387; -fx-font-weight: bold; }
+.diff-unchanged{ -fx-text-fill: #6c7086; }
+
+.diff-row-added    { -fx-background-color: #1a3320; }
+.diff-row-removed  { -fx-background-color: #3d1219; }
+.diff-row-changed  { -fx-background-color: #2e2210; }

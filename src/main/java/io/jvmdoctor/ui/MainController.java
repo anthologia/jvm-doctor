@@ -56,6 +56,7 @@ public class MainController implements Initializable {
 
     private ThreadDump currentDump;
     private String rawDumpText;
+    private String activeStateFilter = null;
 
     private final JstackParser parser = new JstackParser();
     private final List<Analyzer> analyzers = List.of(
@@ -170,12 +171,38 @@ public class MainController implements Initializable {
 
     private void updateSummary(ThreadDump dump, List<AnalysisReport> reports) {
         // Pie chart
+        activeStateFilter = null;
         Map<String, Long> dist = dump.stateDistribution();
         var chartData = FXCollections.<PieChart.Data>observableArrayList();
         dist.forEach((state, count) -> chartData.add(new PieChart.Data(state + " (" + count + ")", count)));
         stateChart.setData(chartData);
         stateChart.setLabelsVisible(true);
         stateChart.setLegendVisible(false);
+
+        // 슬라이스 클릭 → 상태 필터 (재클릭 시 해제)
+        Platform.runLater(() -> {
+            for (PieChart.Data data : stateChart.getData()) {
+                String state = data.getName().replaceAll("\\s*\\(\\d+\\)$", ""); // "RUNNABLE (5)" → "RUNNABLE"
+                data.getNode().setStyle("-fx-cursor: hand;");
+                data.getNode().setOnMouseClicked(e -> {
+                    if (state.equals(activeStateFilter)) {
+                        // 토글 해제
+                        activeStateFilter = null;
+                        threadTableController.filterByState(null);
+                        stateChart.getData().forEach(d -> d.getNode().setOpacity(1.0));
+                        updateStatus("State filter cleared.");
+                    } else {
+                        // 해당 상태로 필터
+                        activeStateFilter = state;
+                        threadTableController.filterByState(state);
+                        contentTabs.getSelectionModel().select(threadsTab);
+                        stateChart.getData().forEach(d ->
+                                d.getNode().setOpacity(d == data ? 1.0 : 0.35));
+                        updateStatus("Filtered by state: " + state + "  (click again to clear)");
+                    }
+                });
+            }
+        });
 
         // Metrics
         totalLabel.setText("Total: " + dump.threads().size());

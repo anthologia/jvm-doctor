@@ -25,6 +25,7 @@ public class ThreadTableController implements Initializable {
 
     private final ObservableList<ThreadInfo> allThreads = FXCollections.observableArrayList();
     private FilteredList<ThreadInfo> filteredThreads;
+    private String stateFilter = null;
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
@@ -59,15 +60,7 @@ public class ThreadTableController implements Initializable {
         filteredThreads = new FilteredList<>(allThreads, t -> true);
         threadTable.setItems(filteredThreads);
 
-        filterField.textProperty().addListener((obs, old, text) -> {
-            String lower = text == null ? "" : text.toLowerCase();
-            filteredThreads.setPredicate(t ->
-                    lower.isEmpty()
-                    || t.name().toLowerCase().contains(lower)
-                    || t.state().toLowerCase().contains(lower)
-                    || (t.waitingOnLock() != null && t.waitingOnLock().toString().toLowerCase().contains(lower))
-            );
-        });
+        filterField.textProperty().addListener((obs, old, text) -> applyFilter(text));
 
         threadTable.getSelectionModel().selectedItemProperty().addListener((obs, old, selected) -> {
             if (selected == null) {
@@ -95,6 +88,25 @@ public class ThreadTableController implements Initializable {
 
     public void setThreads(List<ThreadInfo> threads) {
         allThreads.setAll(threads);
+        stateFilter = null;
         filterField.clear();
+    }
+
+    /** 파이차트 슬라이스 클릭 시 호출. null이면 상태 필터 해제. */
+    public void filterByState(String state) {
+        this.stateFilter = state;
+        applyFilter(filterField.getText());
+    }
+
+    private void applyFilter(String text) {
+        String lower = text == null ? "" : text.toLowerCase();
+        filteredThreads.setPredicate(t -> {
+            boolean stateMatch = stateFilter == null || t.state().equalsIgnoreCase(stateFilter);
+            boolean textMatch = lower.isEmpty()
+                    || t.name().toLowerCase().contains(lower)
+                    || t.state().toLowerCase().contains(lower)
+                    || (t.waitingOnLock() != null && t.waitingOnLock().toString().toLowerCase().contains(lower));
+            return stateMatch && textMatch;
+        });
     }
 }

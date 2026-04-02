@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox xmlns="http://javafx.com/javafx/21"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="io.jvmdoctor.ui.DeadlockViewController"
+      spacing="8">
+    <padding><Insets top="8" right="12" bottom="8" left="12"/></padding>
+
+    <Label fx:id="deadlockStatusLabel" text="No analysis yet"
+           styleClass="deadlock-status" maxWidth="Infinity"/>
+
+    <SplitPane dividerPositions="0.38" VBox.vgrow="ALWAYS">
+
+        <VBox spacing="4">
+            <Label text="Findings" styleClass="section-label"/>
+            <ListView fx:id="findingsList" VBox.vgrow="ALWAYS"
+                      style="-fx-font-size: 13px;"/>
+        </VBox>
+
+        <VBox spacing="4">
+            <Label text="Detail" styleClass="section-label"/>
+            <TextArea fx:id="findingDetail" VBox.vgrow="ALWAYS"
+                      editable="false" wrapText="true"
+                      style="-fx-font-family: monospace; -fx-font-size: 12px;"/>
+        </VBox>
+
+    </SplitPane>
+</VBox>

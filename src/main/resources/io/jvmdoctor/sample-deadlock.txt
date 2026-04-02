@@ -1,0 +1,70 @@
+2024-03-15 10:42:00
+Full thread dump OpenJDK 64-Bit Server VM (21.0.2+13-LTS mixed mode, sharing):
+
+"Thread-A" #12 prio=5 os_prio=0 cpu=1.23ms elapsed=3.10s tid=0x0000aaa1 nid=0x1234 waiting for monitor entry  [0x00007f00]
+   java.lang.Thread.State: BLOCKED (on object monitor)
+	at com.example.DeadlockDemo.methodA(DeadlockDemo.java:42)
+	- waiting to lock <0xdeadbeef00000002> (a java.lang.Object)
+	- locked <0xdeadbeef00000001> (a java.lang.Object)
+	at com.example.DeadlockDemo.lambda$0(DeadlockDemo.java:20)
+	at java.lang.Thread.run(Thread.java:1583)
+
+"Thread-B" #13 prio=5 os_prio=0 cpu=0.87ms elapsed=3.10s tid=0x0000bbb1 nid=0x1235 waiting for monitor entry  [0x00007f10]
+   java.lang.Thread.State: BLOCKED (on object monitor)
+	at com.example.DeadlockDemo.methodB(DeadlockDemo.java:58)
+	- waiting to lock <0xdeadbeef00000001> (a java.lang.Object)
+	- locked <0xdeadbeef00000002> (a java.lang.Object)
+	at com.example.DeadlockDemo.lambda$1(DeadlockDemo.java:28)
+	at java.lang.Thread.run(Thread.java:1583)
+
+"Thread-C" #14 prio=5 os_prio=0 cpu=12.50ms elapsed=3.10s tid=0x0000ccc1 nid=0x1236 runnable  [0x00007f20]
+   java.lang.Thread.State: RUNNABLE
+	at java.net.SocketInputStream.socketRead0(Native Method)
+	at java.net.SocketInputStream.socketRead(SocketInputStream.java:115)
+	at java.net.SocketInputStream.read(SocketInputStream.java:168)
+	at com.example.NetworkWorker.readResponse(NetworkWorker.java:89)
+	at com.example.NetworkWorker.run(NetworkWorker.java:45)
+	at java.lang.Thread.run(Thread.java:1583)
+
+"Thread-D" #15 prio=5 os_prio=0 cpu=0.10ms elapsed=3.10s tid=0x0000ddd1 nid=0x1237 waiting on condition  [0x00007f30]
+   java.lang.Thread.State: WAITING (parking)
+	at jdk.internal.misc.Unsafe.park(Native Method)
+	- parking to wait for  <0xdeadbeef00000010> (a java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject)
+	at java.util.concurrent.locks.LockSupport.park(LockSupport.java:221)
+	at java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject.await(AbstractQueuedSynchronizer.java:1972)
+	at java.util.concurrent.LinkedBlockingQueue.take(LinkedBlockingQueue.java:435)
+	at com.example.WorkerPool.getTask(WorkerPool.java:67)
+	at com.example.WorkerPool$Worker.run(WorkerPool.java:120)
+	at java.lang.Thread.run(Thread.java:1583)
+
+"Thread-E" #16 prio=5 os_prio=0 cpu=0.05ms elapsed=3.10s tid=0x0000eee1 nid=0x1238 waiting on condition  [0x00007f40]
+   java.lang.Thread.State: TIMED_WAITING (sleeping)
+	at java.lang.Thread.sleep(Native Method)
+	at com.example.SchedulerTask.run(SchedulerTask.java:33)
+	at java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:539)
+	at java.util.concurrent.FutureTask.runAndReset(FutureTask.java:305)
+	at java.util.concurrent.ScheduledThreadPoolExecutor$ScheduledFutureTask.run(ScheduledThreadPoolExecutor.java:305)
+	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
+	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
+	at java.lang.Thread.run(Thread.java:1583)
+
+"Thread-F" #17 prio=5 os_prio=0 cpu=0.30ms elapsed=3.10s tid=0x0000fff1 nid=0x1239 waiting for monitor entry  [0x00007f50]
+   java.lang.Thread.State: BLOCKED (on object monitor)
+	at com.example.CacheManager.get(CacheManager.java:55)
+	- waiting to lock <0xdeadbeef00000020> (a java.util.HashMap)
+	at com.example.ServiceA.process(ServiceA.java:78)
+	at java.lang.Thread.run(Thread.java:1583)
+
+"Thread-G" #18 prio=5 os_prio=0 cpu=5.20ms elapsed=3.10s tid=0x0000aaaa nid=0x123a runnable  [0x00007f60]
+   java.lang.Thread.State: RUNNABLE
+	at com.example.CacheManager.put(CacheManager.java:70)
+	- locked <0xdeadbeef00000020> (a java.util.HashMap)
+	at com.example.ServiceB.update(ServiceB.java:42)
+	at java.lang.Thread.run(Thread.java:1583)
+
+"main" #1 prio=5 os_prio=0 cpu=100.00ms elapsed=3.50s tid=0x00000001 nid=0x1000 waiting on condition  [0x00007f70]
+   java.lang.Thread.State: WAITING (on object monitor)
+	at java.lang.Object.wait(Native Method)
+	- waiting on <0xdeadbeef00000030> (a com.example.DeadlockDemo)
+	at com.example.DeadlockDemo.waitForCompletion(DeadlockDemo.java:98)
+	at com.example.Main.main(Main.java:15)

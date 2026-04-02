@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.*?>
+<?import javafx.scene.chart.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.scene.text.*?>
+
+<BorderPane xmlns="http://javafx.com/javafx/21"
+            xmlns:fx="http://javafx.com/fxml/1"
+            fx:controller="io.jvmdoctor.ui.MainController"
+            styleClass="root-pane">
+
+    <!-- ═══ TOP TOOLBAR ═══ -->
+    <top>
+        <ToolBar styleClass="main-toolbar">
+            <Label text="jvm-doctor" styleClass="app-title"/>
+            <Separator orientation="VERTICAL"/>
+            <Button fx:id="openFileBtn"  text="Open File"  onAction="#onOpenFile"  styleClass="toolbar-btn"/>
+            <Button fx:id="pasteDumpBtn" text="Paste Dump" onAction="#onPasteDump" styleClass="toolbar-btn"/>
+            <Separator orientation="VERTICAL"/>
+            <Button fx:id="analyzeBtn"   text="Analyze"    onAction="#onAnalyze"   styleClass="toolbar-btn, analyze-btn"/>
+        </ToolBar>
+    </top>
+
+    <!-- ═══ BOTTOM STATUS BAR ═══ -->
+    <bottom>
+        <HBox styleClass="status-bar">
+            <Label fx:id="statusLabel" text="Ready" styleClass="status-label"/>
+        </HBox>
+    </bottom>
+
+    <!-- ═══ MAIN CONTENT ═══ -->
+    <center>
+        <SplitPane dividerPositions="0.15" styleClass="main-split">
+
+            <!-- LEFT NAV -->
+            <VBox styleClass="nav-pane" minWidth="120" maxWidth="180">
+                <Label text="NAVIGATION" styleClass="nav-header"/>
+                <ListView fx:id="navList" styleClass="nav-list" VBox.vgrow="ALWAYS"/>
+            </VBox>
+
+            <!-- RIGHT CONTENT -->
+            <VBox spacing="0">
+
+                <!-- SUMMARY ROW -->
+                <HBox styleClass="summary-row" spacing="16" HBox.hgrow="ALWAYS">
+                    <padding><Insets top="12" right="16" bottom="12" left="16"/></padding>
+
+                    <!-- Pie Chart -->
+                    <VBox styleClass="chart-card" HBox.hgrow="ALWAYS">
+                        <Label text="Thread States" styleClass="card-title"/>
+                        <PieChart fx:id="stateChart" prefHeight="180" prefWidth="300"
+                                  animated="true" labelsVisible="true" legendVisible="false"/>
+                    </VBox>
+
+                    <!-- Key Metrics -->
+                    <VBox styleClass="metrics-card" alignment="CENTER" spacing="12" minWidth="160">
+                        <Label text="Key Metrics" styleClass="card-title"/>
+                        <Label fx:id="totalLabel"    text="Total: —"     styleClass="metric-label"/>
+                        <Label fx:id="blockedLabel"  text="Blocked: —"   styleClass="metric-label"/>
+                        <Label fx:id="deadlockLabel" text="Deadlocks: —" styleClass="metric-label"/>
+                    </VBox>
+                </HBox>
+
+                <Separator/>
+
+                <!-- TAB CONTENT -->
+                <TabPane fx:id="contentTabs" VBox.vgrow="ALWAYS" tabClosingPolicy="UNAVAILABLE" styleClass="content-tabs">
+
+                    <!-- THREADS TAB -->
+                    <Tab fx:id="threadsTab" text="Threads">
+                        <fx:include source="thread_table.fxml" fx:id="threadTable"/>
+                    </Tab>
+
+                    <!-- DEADLOCK TAB -->
+                    <Tab fx:id="deadlockTab" text="Deadlock / Issues">
+                        <fx:include source="deadlock_view.fxml" fx:id="deadlock"/>
+                    </Tab>
+
+                    <!-- RAW TAB -->
+                    <Tab text="Raw Dump">
+                        <TextArea fx:id="rawTextArea" styleClass="raw-area"
+                                  editable="false" wrapText="false"
+                                  style="-fx-font-family: monospace; -fx-font-size: 12px;"/>
+                    </Tab>
+
+                </TabPane>
+            </VBox>
+
+        </SplitPane>
+    </center>
+
+</BorderPane>

@@ -32,6 +32,7 @@
 
     <!-- ═══ MAIN CONTENT ═══ -->
     <center>
+        <!-- 수평: 왼쪽 nav | 오른쪽 content -->
         <SplitPane dividerPositions="0.15" styleClass="main-split">
 
             <!-- LEFT NAV -->
@@ -40,45 +41,41 @@
                 <ListView fx:id="navList" styleClass="nav-list" VBox.vgrow="ALWAYS"/>
             </VBox>
 
-            <!-- RIGHT CONTENT -->
-            <VBox spacing="0">
+            <!-- RIGHT CONTENT: 수직 — 위: 요약 | 아래: 탭 -->
+            <SplitPane orientation="VERTICAL" dividerPositions="0.32" styleClass="main-split">
 
-                <!-- SUMMARY ROW -->
-                <HBox styleClass="summary-row" spacing="16" HBox.hgrow="ALWAYS">
-                    <padding><Insets top="12" right="16" bottom="12" left="16"/></padding>
+                <!-- 요약 행: 수평 — 왼쪽: 차트 | 오른쪽: 메트릭 -->
+                <SplitPane dividerPositions="0.68" styleClass="summary-split">
 
-                    <!-- Pie Chart -->
-                    <VBox styleClass="chart-card" HBox.hgrow="ALWAYS">
+                    <VBox styleClass="chart-card summary-row">
+                        <padding><Insets top="10" right="12" bottom="10" left="12"/></padding>
                         <Label text="Thread States" styleClass="card-title"/>
-                        <PieChart fx:id="stateChart" prefHeight="180" prefWidth="300"
-                                  animated="true" labelsVisible="true" legendVisible="false"/>
+                        <PieChart fx:id="stateChart" prefHeight="160"
+                                  animated="true" labelsVisible="true" legendVisible="false"
+                                  VBox.vgrow="ALWAYS"/>
                     </VBox>
 
-                    <!-- Key Metrics -->
-                    <VBox styleClass="metrics-card" alignment="CENTER" spacing="12" minWidth="160">
+                    <VBox styleClass="metrics-card summary-row" alignment="CENTER" spacing="12">
+                        <padding><Insets top="10" right="12" bottom="10" left="12"/></padding>
                         <Label text="Key Metrics" styleClass="card-title"/>
                         <Label fx:id="totalLabel"    text="Total: —"     styleClass="metric-label"/>
                         <Label fx:id="blockedLabel"  text="Blocked: —"   styleClass="metric-label"/>
                         <Label fx:id="deadlockLabel" text="Deadlocks: —" styleClass="metric-label"/>
                     </VBox>
-                </HBox>
 
-                <Separator/>
+                </SplitPane>
 
                 <!-- TAB CONTENT -->
-                <TabPane fx:id="contentTabs" VBox.vgrow="ALWAYS" tabClosingPolicy="UNAVAILABLE" styleClass="content-tabs">
+                <TabPane fx:id="contentTabs" tabClosingPolicy="UNAVAILABLE" styleClass="content-tabs">
 
-                    <!-- THREADS TAB -->
                     <Tab fx:id="threadsTab" text="Threads">
                         <fx:include source="thread_table.fxml" fx:id="threadTable"/>
                     </Tab>
 
-                    <!-- DEADLOCK TAB -->
                     <Tab fx:id="deadlockTab" text="Deadlock / Issues">
                         <fx:include source="deadlock_view.fxml" fx:id="deadlock"/>
                     </Tab>
 
-                    <!-- RAW TAB -->
                     <Tab text="Raw Dump">
                         <TextArea fx:id="rawTextArea" styleClass="raw-area"
                                   editable="false" wrapText="false"
@@ -86,7 +83,8 @@
                     </Tab>
 
                 </TabPane>
-            </VBox>
+
+            </SplitPane>
 
         </SplitPane>
     </center>

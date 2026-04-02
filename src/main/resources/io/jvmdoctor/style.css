@@ -104,6 +104,16 @@
     -fx-background-color: #181825;
 }
 
+.summary-split {
+    -fx-background-color: #181825;
+    -fx-padding: 0;
+}
+
+.summary-split > .split-pane-divider {
+    -fx-background-color: #313244;
+    -fx-padding: 0 1 0 1;
+}
+
 .chart-card, .metrics-card {
     -fx-background-color: #24273a;
     -fx-background-radius: 8;

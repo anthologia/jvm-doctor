@@ -98,6 +98,7 @@ public class MainController implements Initializable {
             rawTextArea.setText(rawDumpText);
             analyzeBtn.setDisable(false);
             updateStatus("Loaded: " + file.getName() + " (" + rawDumpText.length() + " chars)");
+            onAnalyze();
         } catch (IOException e) {
             showError("Failed to read file: " + e.getMessage());
         }

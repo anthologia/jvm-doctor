@@ -7,12 +7,19 @@
 <VBox xmlns="http://javafx.com/javafx/21"
       xmlns:fx="http://javafx.com/fxml/1"
       fx:controller="io.jvmdoctor.ui.ThreadTableController"
-      spacing="8">
+      spacing="6">
     <padding><Insets top="8" right="12" bottom="8" left="12"/></padding>
 
+    <!-- 텍스트 필터 + 문제만 버튼 -->
     <HBox spacing="8" alignment="CENTER_LEFT">
-        <Label text="Filter:"/>
-        <TextField fx:id="filterField" promptText="thread name / state / lock…" prefWidth="300" HBox.hgrow="ALWAYS"/>
+        <Label text="Filter:" styleClass="filter-label"/>
+        <TextField fx:id="filterField" promptText="thread name / state / lock…" HBox.hgrow="ALWAYS"/>
+        <ToggleButton fx:id="problemOnlyBtn" text="⚠ 문제만" styleClass="filter-chip, chip-problem"/>
+    </HBox>
+
+    <!-- State 칩 (동적 생성) -->
+    <HBox fx:id="stateFilterBox" spacing="6" alignment="CENTER_LEFT">
+        <Label text="State:" styleClass="filter-label"/>
     </HBox>
 
     <SplitPane orientation="VERTICAL" dividerPositions="0.6" VBox.vgrow="ALWAYS">
@@ -20,12 +27,13 @@
         <TableView fx:id="threadTable" VBox.vgrow="ALWAYS">
             <columns>
                 <TableColumn fx:id="nameCol"  text="Thread Name"  prefWidth="320"/>
-                <TableColumn fx:id="stateCol" text="State"        prefWidth="120"/>
+                <TableColumn fx:id="stateCol" text="State"        prefWidth="130"/>
                 <TableColumn fx:id="lockCol"  text="Waiting On"   prefWidth="240"/>
-                <TableColumn fx:id="depthCol" text="Stack Depth"  prefWidth="90" style="-fx-alignment: CENTER_RIGHT;"/>
+                <TableColumn fx:id="depthCol" text="Stack Depth"  prefWidth="90"
+                             style="-fx-alignment: CENTER_RIGHT;"/>
             </columns>
             <placeholder>
-                <Label text="No threads loaded. Open a dump file and click Analyze."/>
+                <Label text="No threads loaded. Open a dump file to begin."/>
             </placeholder>
         </TableView>
 

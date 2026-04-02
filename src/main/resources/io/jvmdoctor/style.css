@@ -299,6 +299,59 @@
     -fx-background-color: transparent;
 }
 
+/* ─── Filter chips ──────────────────────────────────────── */
+.filter-label {
+    -fx-text-fill: #6c7086;
+    -fx-font-size: 12px;
+}
+
+.filter-chip {
+    -fx-background-color: #313244;
+    -fx-text-fill: #cdd6f4;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-border-color: #45475a;
+    -fx-border-width: 1;
+    -fx-padding: 3 10 3 10;
+    -fx-cursor: hand;
+    -fx-font-size: 12px;
+}
+
+.filter-chip:hover {
+    -fx-background-color: #45475a;
+}
+
+.filter-chip:selected {
+    -fx-background-color: #cba6f7;
+    -fx-text-fill: #1e1e2e;
+    -fx-border-color: #cba6f7;
+    -fx-font-weight: bold;
+}
+
+.chip-blocked:selected {
+    -fx-background-color: #f38ba8;
+    -fx-border-color: #f38ba8;
+    -fx-text-fill: #1e1e2e;
+}
+
+.chip-waiting:selected {
+    -fx-background-color: #fab387;
+    -fx-border-color: #fab387;
+    -fx-text-fill: #1e1e2e;
+}
+
+.chip-runnable:selected {
+    -fx-background-color: #a6e3a1;
+    -fx-border-color: #a6e3a1;
+    -fx-text-fill: #1e1e2e;
+}
+
+.chip-problem:selected {
+    -fx-background-color: #f38ba8;
+    -fx-border-color: #f38ba8;
+    -fx-text-fill: #1e1e2e;
+}
+
 /* ─── TextField ─────────────────────────────────────────── */
 .text-field {
     -fx-background-color: #313244;

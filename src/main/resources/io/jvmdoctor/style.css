@@ -130,14 +130,33 @@
     -fx-padding: 0 0 6 0;
 }
 
-.metric-label {
+.metric-number {
     -fx-text-fill: #cdd6f4;
-    -fx-font-size: 15px;
+    -fx-font-size: 32px;
     -fx-font-weight: bold;
 }
 
-.metric-critical {
+.metric-number-blocked {
+    -fx-text-fill: #fab387;
+}
+
+.metric-number-deadlock {
+    -fx-text-fill: #6c7086;
+}
+
+.metric-number-deadlock-active {
     -fx-text-fill: #f38ba8;
+}
+
+.metric-name {
+    -fx-text-fill: #6c7086;
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+}
+
+/* ─── Raw search bar ────────────────────────────────────── */
+.raw-search-bar {
+    -fx-background-color: #181825;
 }
 
 /* ─── PieChart ──────────────────────────────────────────── */
@@ -204,7 +223,12 @@
 }
 
 .table-row-cell:selected {
-    -fx-background-color: #313244;
+    -fx-background-color: #4a3f6e;
+}
+
+.table-row-cell:selected .table-cell {
+    -fx-text-fill: #ffffff;
+    -fx-font-weight: bold;
 }
 
 .table-cell {

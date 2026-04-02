@@ -40,7 +40,6 @@ public class MainController implements Initializable {
     @FXML private TabPane contentTabs;
     @FXML private Tab threadsTab;
     @FXML private Tab deadlockTab;
-    @FXML private Tab rawTab;
 
     // --- Thread table (injected sub-controller) ---
     @FXML private ThreadTableController threadTableController;
@@ -48,8 +47,11 @@ public class MainController implements Initializable {
     // --- Deadlock view (injected sub-controller) ---
     @FXML private DeadlockViewController deadlockViewController;
 
-    // --- Raw text area ---
+    // --- Raw tab ---
     @FXML private TextArea rawTextArea;
+    @FXML private TextField rawSearchField;
+    @FXML private Label rawMatchLabel;
+    private int rawSearchFrom = 0;
 
     // --- Status bar ---
     @FXML private Label statusLabel;
@@ -109,6 +111,7 @@ public class MainController implements Initializable {
         Dialog<String> dialog = new TextInputDialog();
         dialog.setTitle("Paste Thread Dump");
         dialog.setHeaderText("Paste your jstack / thread dump output below:");
+        dialog.setGraphic(null);
         dialog.setContentText(null);
 
         // Replace the default editor with a TextArea
@@ -206,18 +209,59 @@ public class MainController implements Initializable {
         });
 
         // Metrics
-        totalLabel.setText("Total: " + dump.threads().size());
-        blockedLabel.setText("Blocked: " + dump.blockedCount());
+        totalLabel.setText(String.valueOf(dump.threads().size()));
+        blockedLabel.setText(String.valueOf(dump.blockedCount()));
 
         long deadlocks = reports.stream()
                 .filter(r -> r.analyzerName().equals("Deadlock Analyzer"))
                 .flatMap(r -> r.findings().stream())
                 .filter(f -> f.severity() == AnalysisReport.Severity.CRITICAL)
                 .count();
-        deadlockLabel.setText("Deadlocks: " + deadlocks);
+        deadlockLabel.setText(String.valueOf(deadlocks));
         if (deadlocks > 0) {
-            deadlockLabel.getStyleClass().add("metric-critical");
+            deadlockLabel.getStyleClass().add("metric-number-deadlock-active");
+        } else {
+            deadlockLabel.getStyleClass().remove("metric-number-deadlock-active");
         }
+    }
+
+    @FXML
+    private void onRawSearch() {
+        String query = rawSearchField.getText();
+        if (query.isEmpty()) { rawMatchLabel.setText(""); return; }
+
+        String content = rawTextArea.getText();
+        if (content.isEmpty()) { rawMatchLabel.setText("No content"); return; }
+
+        // 전체 매치 수 계산
+        int total = 0;
+        int pos = 0;
+        while ((pos = content.indexOf(query, pos)) >= 0) { total++; pos++; }
+        if (total == 0) {
+            rawMatchLabel.setText("Not found");
+            rawSearchFrom = 0;
+            return;
+        }
+
+        // 현재 위치에서 다음 매치 탐색 (끝에 도달하면 wrap)
+        int idx = content.indexOf(query, rawSearchFrom);
+        if (idx < 0) {
+            idx = content.indexOf(query, 0);
+            rawSearchFrom = 0;
+        }
+        rawTextArea.selectRange(idx, idx + query.length());
+        rawTextArea.requestFocus();
+        rawSearchFrom = idx + 1;
+
+        // 현재 몇 번째인지 표시
+        int current = 0;
+        pos = 0;
+        while ((pos = content.indexOf(query, pos)) >= 0) {
+            current++;
+            if (pos >= idx) break;
+            pos++;
+        }
+        rawMatchLabel.setText(current + " / " + total);
     }
 
     private void updateStatus(String msg) {

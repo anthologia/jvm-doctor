@@ -16,10 +16,10 @@
         <ToolBar styleClass="main-toolbar">
             <Label text="jvm-doctor" styleClass="app-title"/>
             <Separator orientation="VERTICAL"/>
-            <Button fx:id="openFileBtn"  text="Open File"  onAction="#onOpenFile"  styleClass="toolbar-btn"/>
-            <Button fx:id="pasteDumpBtn" text="Paste Dump" onAction="#onPasteDump" styleClass="toolbar-btn"/>
+            <Button fx:id="openFileBtn"  text="Open File"   onAction="#onOpenFile"  styleClass="toolbar-btn"/>
+            <Button fx:id="pasteDumpBtn" text="Paste Text"  onAction="#onPasteDump" styleClass="toolbar-btn"/>
             <Separator orientation="VERTICAL"/>
-            <Button fx:id="analyzeBtn"   text="Analyze"    onAction="#onAnalyze"   styleClass="toolbar-btn, analyze-btn"/>
+            <Button fx:id="analyzeBtn"   text="Analyze"     onAction="#onAnalyze"   styleClass="toolbar-btn, analyze-btn"/>
         </ToolBar>
     </top>
 
@@ -32,7 +32,6 @@
 
     <!-- ═══ MAIN CONTENT ═══ -->
     <center>
-        <!-- 수평: 왼쪽 nav | 오른쪽 content -->
         <SplitPane dividerPositions="0.15" styleClass="main-split">
 
             <!-- LEFT NAV -->
@@ -55,12 +54,32 @@
                                   VBox.vgrow="ALWAYS"/>
                     </VBox>
 
-                    <VBox styleClass="metrics-card summary-row" alignment="CENTER" spacing="12">
+                    <!-- Key Metrics: 3-column card -->
+                    <VBox styleClass="metrics-card summary-row" spacing="8">
                         <padding><Insets top="10" right="12" bottom="10" left="12"/></padding>
-                        <Label text="Key Metrics" styleClass="card-title"/>
-                        <Label fx:id="totalLabel"    text="Total: —"     styleClass="metric-label"/>
-                        <Label fx:id="blockedLabel"  text="Blocked: —"   styleClass="metric-label"/>
-                        <Label fx:id="deadlockLabel" text="Deadlocks: —" styleClass="metric-label"/>
+                        <Label text="KEY METRICS" styleClass="card-title"/>
+                        <HBox VBox.vgrow="ALWAYS" alignment="CENTER">
+
+                            <VBox HBox.hgrow="ALWAYS" alignment="CENTER" spacing="4">
+                                <Label fx:id="totalLabel" text="—" styleClass="metric-number"/>
+                                <Label text="TOTAL" styleClass="metric-name"/>
+                            </VBox>
+
+                            <Separator orientation="VERTICAL" style="-fx-pref-height: 48;"/>
+
+                            <VBox HBox.hgrow="ALWAYS" alignment="CENTER" spacing="4">
+                                <Label fx:id="blockedLabel" text="—" styleClass="metric-number, metric-number-blocked"/>
+                                <Label text="BLOCKED" styleClass="metric-name"/>
+                            </VBox>
+
+                            <Separator orientation="VERTICAL" style="-fx-pref-height: 48;"/>
+
+                            <VBox HBox.hgrow="ALWAYS" alignment="CENTER" spacing="4">
+                                <Label fx:id="deadlockLabel" text="—" styleClass="metric-number, metric-number-deadlock"/>
+                                <Label text="DEADLOCKS" styleClass="metric-name"/>
+                            </VBox>
+
+                        </HBox>
                     </VBox>
 
                 </SplitPane>
@@ -76,10 +95,25 @@
                         <fx:include source="deadlock_view.fxml" fx:id="deadlock"/>
                     </Tab>
 
+                    <!-- Raw Dump 탭: 검색바 + TextArea -->
                     <Tab text="Raw Dump">
-                        <TextArea fx:id="rawTextArea" styleClass="raw-area"
-                                  editable="false" wrapText="false"
-                                  style="-fx-font-family: monospace; -fx-font-size: 12px;"/>
+                        <VBox spacing="0">
+                            <HBox spacing="8" alignment="CENTER_LEFT" styleClass="raw-search-bar">
+                                <padding><Insets top="6" right="10" bottom="6" left="10"/></padding>
+                                <Label text="Find:" styleClass="filter-label"/>
+                                <TextField fx:id="rawSearchField"
+                                           promptText="search in dump…"
+                                           onAction="#onRawSearch"
+                                           HBox.hgrow="ALWAYS"/>
+                                <Button text="Next" onAction="#onRawSearch" styleClass="toolbar-btn"/>
+                                <Label fx:id="rawMatchLabel" text="" styleClass="status-label"/>
+                            </HBox>
+                            <Separator/>
+                            <TextArea fx:id="rawTextArea" styleClass="raw-area"
+                                      editable="false" wrapText="false"
+                                      VBox.vgrow="ALWAYS"
+                                      style="-fx-font-family: monospace; -fx-font-size: 12px;"/>
+                        </VBox>
                     </Tab>
 
                 </TabPane>

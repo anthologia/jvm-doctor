@@ -99,6 +99,10 @@
                         <fx:include source="top_frames.fxml" fx:id="topFrames"/>
                     </Tab>
 
+                    <Tab fx:id="threadPoolTab" text="Thread Pools">
+                        <fx:include source="thread_pool.fxml" fx:id="threadPool"/>
+                    </Tab>
+
                     <!-- Raw Dump 탭: 검색바 + TextArea -->
                     <Tab text="Raw Dump">
                         <VBox spacing="0">

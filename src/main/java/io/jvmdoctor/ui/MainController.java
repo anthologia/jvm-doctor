@@ -50,6 +50,10 @@ public class MainController implements Initializable {
     @FXML private TopFramesController topFramesController;
     @FXML private Tab topFramesTab;
 
+    // --- Thread Pool (injected sub-controller) ---
+    @FXML private ThreadPoolController threadPoolController;
+    @FXML private Tab threadPoolTab;
+
     // --- Raw tab ---
     @FXML private TextArea rawTextArea;
     @FXML private TextField rawSearchField;
@@ -65,6 +69,7 @@ public class MainController implements Initializable {
 
     private final JstackParser parser = new JstackParser();
     private final TopFramesAnalyzer topFramesAnalyzer = new TopFramesAnalyzer();
+    private final ThreadPoolGrouper poolGrouper = new ThreadPoolGrouper();
     private final List<Analyzer> analyzers = List.of(
             new DeadlockAnalyzer(),
             new ThreadStateAnalyzer(),
@@ -74,15 +79,16 @@ public class MainController implements Initializable {
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
-        navList.setItems(FXCollections.observableArrayList("Summary", "Deadlock", "Threads", "Top Frames", "Locks"));
+        navList.setItems(FXCollections.observableArrayList("Summary", "Deadlock", "Threads", "Top Frames", "Thread Pools", "Locks"));
         navList.getSelectionModel().select(0);
         navList.getSelectionModel().selectedItemProperty().addListener((obs, old, selected) -> {
             if (selected == null) return;
             switch (selected) {
-                case "Deadlock"   -> contentTabs.getSelectionModel().select(deadlockTab);
-                case "Threads"    -> contentTabs.getSelectionModel().select(threadsTab);
-                case "Top Frames" -> contentTabs.getSelectionModel().select(topFramesTab);
-                default           -> contentTabs.getSelectionModel().select(0);
+                case "Deadlock"      -> contentTabs.getSelectionModel().select(deadlockTab);
+                case "Threads"       -> contentTabs.getSelectionModel().select(threadsTab);
+                case "Top Frames"    -> contentTabs.getSelectionModel().select(topFramesTab);
+                case "Thread Pools"  -> contentTabs.getSelectionModel().select(threadPoolTab);
+                default              -> contentTabs.getSelectionModel().select(0);
             }
         });
 
@@ -166,6 +172,7 @@ public class MainController implements Initializable {
                     threadTableController.setThreads(dump.threads());
                     deadlockViewController.setReports(reports, dump);
                     topFramesController.setFrames(topFramesAnalyzer.topFrames(dump, 100));
+                    threadPoolController.setPools(poolGrouper.group(dump));
                     topFramesController.setOnFrameClicked(frameKey -> {
                         threadTableController.filterByFrame(frameKey);
                         if (frameKey != null) {

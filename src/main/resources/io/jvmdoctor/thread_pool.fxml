@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<SplitPane orientation="VERTICAL" dividerPositions="0.55"
+           xmlns="http://javafx.com/javafx/21"
+           xmlns:fx="http://javafx.com/fxml/1"
+           fx:controller="io.jvmdoctor.ui.ThreadPoolController"
+           style="-fx-background-color: #1e1e2e;">
+
+    <!-- TOP: pool table -->
+    <VBox spacing="6">
+        <padding><Insets top="8" right="12" bottom="4" left="12"/></padding>
+
+        <HBox spacing="8" alignment="CENTER_LEFT">
+            <Label text="Filter:" styleClass="filter-label"/>
+            <TextField fx:id="filterField" promptText="pool name…" HBox.hgrow="ALWAYS"/>
+            <Label fx:id="statsLabel" text="" styleClass="status-label"/>
+        </HBox>
+
+        <TableView fx:id="poolTable" VBox.vgrow="ALWAYS">
+            <columns>
+                <TableColumn fx:id="poolNameCol"  text="Pool / Thread Group"  prefWidth="260" minWidth="140"/>
+                <TableColumn fx:id="totalCol"     text="Total"    prefWidth="60"
+                             style="-fx-alignment: CENTER_RIGHT;"/>
+                <TableColumn fx:id="runnableCol"  text="Run"      prefWidth="55"
+                             style="-fx-alignment: CENTER_RIGHT;"/>
+                <TableColumn fx:id="waitingCol"   text="Wait"     prefWidth="55"
+                             style="-fx-alignment: CENTER_RIGHT;"/>
+                <TableColumn fx:id="blockedCol"   text="Blocked"  prefWidth="65"
+                             style="-fx-alignment: CENTER_RIGHT;"/>
+                <TableColumn fx:id="dominantCol"  text="Dominant State" prefWidth="130"/>
+            </columns>
+            <placeholder>
+                <Label text="No data yet. Open a thread dump to analyze."/>
+            </placeholder>
+        </TableView>
+    </VBox>
+
+    <!-- BOTTOM: selected pool detail -->
+    <VBox fx:id="threadDetailBox" spacing="4">
+        <padding><Insets top="6" right="12" bottom="8" left="12"/></padding>
+        <Label fx:id="selectedPoolLabel" styleClass="card-title"/>
+        <ListView fx:id="threadListView" VBox.vgrow="ALWAYS" styleClass="list-view"
+                  style="-fx-font-family: monospace; -fx-font-size: 12px;"/>
+    </VBox>
+
+</SplitPane>

@@ -109,6 +109,10 @@
                         <fx:include source="dump_diff.fxml" fx:id="dumpDiff"/>
                     </Tab>
 
+                    <Tab fx:id="timelineTab" text="Timeline">
+                        <fx:include source="timeline.fxml" fx:id="timeline"/>
+                    </Tab>
+
                     <!-- Raw Dump 탭: 검색바 + TextArea -->
                     <Tab text="Raw Dump">
                         <VBox spacing="0">

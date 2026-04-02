@@ -59,6 +59,10 @@ public class MainController implements Initializable {
     @FXML private Tab dumpDiffTab;
     @FXML private Button compareDumpsBtn;
 
+    // --- Timeline (injected sub-controller) ---
+    @FXML private TimelineController timelineController;
+    @FXML private Tab timelineTab;
+
     // --- Raw tab ---
     @FXML private TextArea rawTextArea;
     @FXML private TextField rawSearchField;
@@ -85,7 +89,7 @@ public class MainController implements Initializable {
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
-        navList.setItems(FXCollections.observableArrayList("Summary", "Deadlock", "Threads", "Top Frames", "Thread Pools", "Dump Diff", "Locks"));
+        navList.setItems(FXCollections.observableArrayList("Summary", "Deadlock", "Threads", "Top Frames", "Thread Pools", "Dump Diff", "Timeline", "Locks"));
         navList.getSelectionModel().select(0);
         navList.getSelectionModel().selectedItemProperty().addListener((obs, old, selected) -> {
             if (selected == null) return;
@@ -95,6 +99,7 @@ public class MainController implements Initializable {
                 case "Top Frames"    -> contentTabs.getSelectionModel().select(topFramesTab);
                 case "Thread Pools"  -> contentTabs.getSelectionModel().select(threadPoolTab);
                 case "Dump Diff"     -> contentTabs.getSelectionModel().select(dumpDiffTab);
+                case "Timeline"      -> contentTabs.getSelectionModel().select(timelineTab);
                 default              -> contentTabs.getSelectionModel().select(0);
             }
         });

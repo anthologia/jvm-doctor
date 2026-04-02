@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox xmlns="http://javafx.com/javafx/21"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="io.jvmdoctor.ui.TimelineController"
+      spacing="6">
+    <padding><Insets top="8" right="12" bottom="8" left="12"/></padding>
+
+    <!-- Toolbar row -->
+    <HBox spacing="8" alignment="CENTER_LEFT">
+        <Button fx:id="addDumpsBtn" text="+ Add Dumps" onAction="#onAddDumps" styleClass="toolbar-btn"/>
+        <Button fx:id="clearBtn"    text="Clear"       onAction="#onClear"    styleClass="toolbar-btn"/>
+        <Separator orientation="VERTICAL"/>
+        <Label text="Filter threads:" styleClass="filter-label"/>
+        <TextField fx:id="filterField" promptText="thread name…" HBox.hgrow="ALWAYS"/>
+        <Label fx:id="statusLabel" text="Add dumps to begin." styleClass="status-label"/>
+    </HBox>
+
+    <!-- Legend -->
+    <HBox spacing="12" alignment="CENTER_LEFT">
+        <Label text="Legend:" styleClass="filter-label"/>
+        <Label text="■" style="-fx-text-fill: #a6e3a1;" />
+        <Label text="RUNNABLE" styleClass="filter-label"/>
+        <Label text="■" style="-fx-text-fill: #f38ba8;" />
+        <Label text="BLOCKED" styleClass="filter-label"/>
+        <Label text="■" style="-fx-text-fill: #fab387;" />
+        <Label text="WAITING" styleClass="filter-label"/>
+        <Label text="■" style="-fx-text-fill: #f9e2af;" />
+        <Label text="TIMED_WAITING" styleClass="filter-label"/>
+        <Label text="■" style="-fx-text-fill: #313244;" />
+        <Label text="absent" styleClass="filter-label"/>
+    </HBox>
+
+    <Separator/>
+
+    <!-- Heatmap -->
+    <ScrollPane fx:id="heatmapScroll" VBox.vgrow="ALWAYS"
+                fitToWidth="false" fitToHeight="false"
+                style="-fx-background-color: #1e1e2e; -fx-background: #1e1e2e;">
+        <GridPane fx:id="heatmapGrid" hgap="2" vgap="2"
+                  style="-fx-background-color: #1e1e2e; -fx-padding: 8;"/>
+    </ScrollPane>
+
+</VBox>

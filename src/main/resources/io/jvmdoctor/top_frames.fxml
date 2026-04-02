@@ -22,7 +22,7 @@
             <TableColumn fx:id="packageCol" text="Package"       prefWidth="220" minWidth="100"/>
             <TableColumn fx:id="countCol"   text="Threads"       prefWidth="70"
                          style="-fx-alignment: CENTER_RIGHT;"/>
-            <TableColumn fx:id="pctCol"     text="%"             prefWidth="60"/>
+            <TableColumn fx:id="pctCol"     text="Pct"           prefWidth="60"/>
             <TableColumn fx:id="barCol"     text=""              prefWidth="130" minWidth="80"/>
         </columns>
         <placeholder>

@@ -94,7 +94,7 @@
                     </Tab>
 
                     <Tab fx:id="deadlockTab" text="Deadlock / Issues">
-                        <fx:include source="deadlock_view.fxml" fx:id="deadlock"/>
+                        <fx:include source="deadlock_view.fxml" fx:id="deadlockView"/>
                     </Tab>
 
                     <Tab fx:id="topFramesTab" text="Top Frames">

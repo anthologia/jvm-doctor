@@ -10,6 +10,14 @@
     -fx-background-color: #1e1e2e;
 }
 
+.root-pane:drag-over {
+    -fx-background-color: #23253a;
+    -fx-border-color: #89b4fa;
+    -fx-border-width: 2;
+    -fx-border-insets: 8;
+    -fx-border-style: dashed;
+}
+
 /* ─── Toolbar ───────────────────────────────────────────── */
 .main-toolbar {
     -fx-background-color: #181825;
@@ -35,21 +43,6 @@
 
 .toolbar-btn:hover {
     -fx-background-color: #45475a;
-}
-
-.analyze-btn {
-    -fx-background-color: #cba6f7;
-    -fx-text-fill: #1e1e2e;
-    -fx-font-weight: bold;
-}
-
-.analyze-btn:hover {
-    -fx-background-color: #d0b8ff;
-}
-
-.analyze-btn:disabled {
-    -fx-background-color: #45475a;
-    -fx-text-fill: #6c7086;
 }
 
 /* ─── Status Bar ────────────────────────────────────────── */

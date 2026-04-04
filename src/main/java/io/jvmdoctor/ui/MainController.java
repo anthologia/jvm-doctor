@@ -5,10 +5,15 @@ import io.jvmdoctor.model.ThreadDump;
 import io.jvmdoctor.parser.JstackParser;
 import javafx.application.Platform;
 import javafx.collections.FXCollections;
+import javafx.css.PseudoClass;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.chart.PieChart;
 import javafx.scene.control.*;
+import javafx.scene.input.Dragboard;
+import javafx.scene.input.DragEvent;
+import javafx.scene.input.TransferMode;
+import javafx.scene.layout.BorderPane;
 import javafx.stage.FileChooser;
 
 import java.io.File;
@@ -21,10 +26,13 @@ import java.util.ResourceBundle;
 
 public class MainController implements Initializable {
 
+    private static final PseudoClass DRAG_OVER = PseudoClass.getPseudoClass("drag-over");
+    private static final String DROP_HINT_STATUS = "Drop a thread dump file to load and analyze.";
+
     // --- Toolbar ---
+    @FXML private BorderPane rootPane;
     @FXML private Button openFileBtn;
     @FXML private Button pasteDumpBtn;
-    @FXML private Button analyzeBtn;
 
     // --- Left nav ---
     @FXML private ListView<String> navList;
@@ -75,6 +83,7 @@ public class MainController implements Initializable {
     private ThreadDump currentDump;
     private String rawDumpText;
     private String activeStateFilter = null;
+    private String statusBeforeDrag;
 
     private final JstackParser parser = new JstackParser();
     private final TopFramesAnalyzer topFramesAnalyzer = new TopFramesAnalyzer();
@@ -89,6 +98,7 @@ public class MainController implements Initializable {
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
+        configureFileDrop();
         navList.setItems(FXCollections.observableArrayList("Summary", "Deadlock", "Threads", "Top Frames", "Thread Pools", "Dump Diff", "Timeline", "Locks"));
         navList.getSelectionModel().select(0);
         navList.getSelectionModel().selectedItemProperty().addListener((obs, old, selected) -> {
@@ -104,8 +114,7 @@ public class MainController implements Initializable {
             }
         });
 
-        analyzeBtn.setDisable(true);
-        updateStatus("Ready. Open a thread dump file or paste a dump to begin.");
+        updateStatus("Ready. Open, drop, or paste a thread dump to begin.");
     }
 
     @FXML
@@ -118,16 +127,7 @@ public class MainController implements Initializable {
         );
         File file = chooser.showOpenDialog(openFileBtn.getScene().getWindow());
         if (file == null) return;
-
-        try {
-            rawDumpText = Files.readString(file.toPath());
-            rawTextArea.setText(rawDumpText);
-            analyzeBtn.setDisable(false);
-            updateStatus("Loaded: " + file.getName() + " (" + rawDumpText.length() + " chars)");
-            onAnalyze();
-        } catch (IOException e) {
-            showError("Failed to read file: " + e.getMessage());
-        }
+        loadDumpFile(file);
     }
 
     @FXML
@@ -155,19 +155,19 @@ public class MainController implements Initializable {
 
         dialog.showAndWait().ifPresent(text -> {
             if (!text.isBlank()) {
-                rawDumpText = text;
-                rawTextArea.setText(rawDumpText);
-                analyzeBtn.setDisable(false);
-                updateStatus("Dump pasted (" + rawDumpText.length() + " chars). Click Analyze.");
+                applyRawDumpText(text);
+                analyzeCurrentDump();
             }
         });
     }
 
-    @FXML
-    private void onAnalyze() {
+    public void openDumpFile(File file) {
+        loadDumpFile(file);
+    }
+
+    private void analyzeCurrentDump() {
         if (rawDumpText == null || rawDumpText.isBlank()) return;
 
-        analyzeBtn.setDisable(true);
         updateStatus("Analyzing...");
 
         // Parse + analyze off-thread to keep UI responsive
@@ -194,12 +194,10 @@ public class MainController implements Initializable {
                             updateStatus("Frame filter cleared.");
                         }
                     });
-                    analyzeBtn.setDisable(false);
                     updateStatus("Analysis complete. " + dump.threads().size() + " threads parsed.");
                 });
             } catch (Exception e) {
                 Platform.runLater(() -> {
-                    analyzeBtn.setDisable(false);
                     showError("Parse error: " + e.getMessage());
                 });
             }
@@ -344,5 +342,91 @@ public class MainController implements Initializable {
         alert.setTitle("Error");
         alert.showAndWait();
         updateStatus("Error: " + msg);
+    }
+
+    private void configureFileDrop() {
+        rootPane.addEventFilter(DragEvent.DRAG_OVER, this::handleDragOver);
+        rootPane.addEventFilter(DragEvent.DRAG_ENTERED_TARGET, this::handleDragEntered);
+        rootPane.addEventFilter(DragEvent.DRAG_EXITED_TARGET, this::handleDragExited);
+        rootPane.addEventFilter(DragEvent.DRAG_DROPPED, this::handleDragDropped);
+    }
+
+    private void handleDragOver(DragEvent event) {
+        if (firstDroppedFile(event.getDragboard()) != null) {
+            event.acceptTransferModes(TransferMode.COPY);
+        }
+        event.consume();
+    }
+
+    private void handleDragEntered(DragEvent event) {
+        if (firstDroppedFile(event.getDragboard()) == null) {
+            return;
+        }
+        if (!rootPane.getPseudoClassStates().contains(DRAG_OVER)) {
+            statusBeforeDrag = statusLabel.getText();
+        }
+        rootPane.pseudoClassStateChanged(DRAG_OVER, true);
+        updateStatus(DROP_HINT_STATUS);
+        event.consume();
+    }
+
+    private void handleDragExited(DragEvent event) {
+        clearDragState();
+        event.consume();
+    }
+
+    private void handleDragDropped(DragEvent event) {
+        File file = firstDroppedFile(event.getDragboard());
+        boolean success = file != null && loadDumpFile(file);
+        clearDragState();
+        event.setDropCompleted(success);
+        event.consume();
+    }
+
+    private void clearDragState() {
+        rootPane.pseudoClassStateChanged(DRAG_OVER, false);
+        if (DROP_HINT_STATUS.equals(statusLabel.getText()) && statusBeforeDrag != null) {
+            updateStatus(statusBeforeDrag);
+        }
+        statusBeforeDrag = null;
+    }
+
+    private File firstDroppedFile(Dragboard dragboard) {
+        if (dragboard == null || !dragboard.hasFiles()) {
+            return null;
+        }
+        return dragboard.getFiles().stream()
+                .filter(File::isFile)
+                .findFirst()
+                .orElse(null);
+    }
+
+    private boolean loadDumpFile(File file) {
+        if (file == null) {
+            return false;
+        }
+        if (!file.isFile()) {
+            showError("Not a file: " + file.getAbsolutePath());
+            return false;
+        }
+
+        try {
+            String dumpText = Files.readString(file.toPath());
+            applyRawDumpText(dumpText);
+            updateStatus("Loaded: " + file.getName() + " (" + rawDumpText.length() + " chars)");
+            analyzeCurrentDump();
+            return true;
+        } catch (IOException e) {
+            showError("Failed to read file: " + e.getMessage());
+            return false;
+        }
+    }
+
+    private void applyRawDumpText(String dumpText) {
+        rawDumpText = dumpText;
+        rawTextArea.setText(rawDumpText);
+        rawSearchField.clear();
+        rawMatchLabel.setText("");
+        rawSearchFrom = 0;
     }
 }

@@ -65,15 +65,15 @@ public class ThreadTableController implements Initializable {
             @Override
             protected void updateItem(String state, boolean empty) {
                 super.updateItem(state, empty);
-                getStyleClass().removeAll("state-blocked", "state-waiting", "state-runnable");
+                getStyleClass().removeAll("state-blocked", "state-waiting", "state-timed-waiting", "state-runnable");
                 if (empty || state == null) {
                     setText(null);
                 } else {
                     setText(state);
                     switch (state.toUpperCase()) {
                         case "BLOCKED"       -> getStyleClass().add("state-blocked");
-                        case "WAITING",
-                             "TIMED_WAITING" -> getStyleClass().add("state-waiting");
+                        case "WAITING"       -> getStyleClass().add("state-waiting");
+                        case "TIMED_WAITING" -> getStyleClass().add("state-timed-waiting");
                         case "RUNNABLE"      -> getStyleClass().add("state-runnable");
                     }
                 }
@@ -183,8 +183,8 @@ public class ThreadTableController implements Initializable {
                     chip.getStyleClass().add("filter-chip");
                     switch (state.toUpperCase()) {
                         case "BLOCKED"       -> chip.getStyleClass().add("chip-blocked");
-                        case "WAITING",
-                             "TIMED_WAITING" -> chip.getStyleClass().add("chip-waiting");
+                        case "WAITING"       -> chip.getStyleClass().add("chip-waiting");
+                        case "TIMED_WAITING" -> chip.getStyleClass().add("chip-timed-waiting");
                         case "RUNNABLE"      -> chip.getStyleClass().add("chip-runnable");
                     }
                     chip.selectedProperty().addListener((obs, wasOn, isOn) -> {

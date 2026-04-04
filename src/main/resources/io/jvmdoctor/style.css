@@ -138,7 +138,7 @@
 }
 
 .metric-number-blocked {
-    -fx-text-fill: #fab387;
+    -fx-text-fill: #c73a4f;
 }
 
 .metric-number-deadlock {
@@ -146,7 +146,7 @@
 }
 
 .metric-number-deadlock-active {
-    -fx-text-fill: #f38ba8;
+    -fx-text-fill: #c73a4f;
 }
 
 .metric-name {
@@ -179,12 +179,47 @@
 
 /* ─── PieChart ──────────────────────────────────────────── */
 .chart-pie-label {
-    -fx-fill: #cdd6f4;
-    -fx-font-size: 11px;
+    -fx-fill: #e6e9f4;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+}
+
+.chart-pie-label-line {
+    -fx-stroke: #6c7086;
+    -fx-stroke-width: 1.1;
 }
 
 .chart-content {
     -fx-padding: 4;
+}
+
+.state-legend {
+    -fx-padding: 4 0 0 0;
+}
+
+.state-legend-item {
+    -fx-alignment: center-left;
+    -fx-padding: 2 10 2 0;
+}
+
+.state-legend-swatch {
+    -fx-min-width: 11;
+    -fx-min-height: 11;
+    -fx-pref-width: 11;
+    -fx-pref-height: 11;
+    -fx-background-radius: 999;
+}
+
+.state-legend-label {
+    -fx-text-fill: #cdd6f4;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+}
+
+.state-legend-count {
+    -fx-text-fill: #a6adc8;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
 }
 
 /* ─── Tabs ──────────────────────────────────────────────── */
@@ -255,16 +290,20 @@
 
 /* Thread state colours in table */
 .state-blocked {
-    -fx-text-fill: #f38ba8;
+    -fx-text-fill: #c73a4f;
     -fx-font-weight: bold;
 }
 
 .state-waiting {
-    -fx-text-fill: #fab387;
+    -fx-text-fill: #b99132;
+}
+
+.state-timed-waiting {
+    -fx-text-fill: #8c6a45;
 }
 
 .state-runnable {
-    -fx-text-fill: #a6e3a1;
+    -fx-text-fill: #3677e0;
 }
 
 /* ─── TextArea ──────────────────────────────────────────── */
@@ -371,21 +410,27 @@
 }
 
 .chip-blocked:selected {
-    -fx-background-color: #f38ba8;
-    -fx-border-color: #f38ba8;
-    -fx-text-fill: #1e1e2e;
+    -fx-background-color: #c73a4f;
+    -fx-border-color: #c73a4f;
+    -fx-text-fill: #f5f6fa;
 }
 
 .chip-waiting:selected {
-    -fx-background-color: #fab387;
-    -fx-border-color: #fab387;
-    -fx-text-fill: #1e1e2e;
+    -fx-background-color: #b99132;
+    -fx-border-color: #b99132;
+    -fx-text-fill: #f5f6fa;
+}
+
+.chip-timed-waiting:selected {
+    -fx-background-color: #8c6a45;
+    -fx-border-color: #8c6a45;
+    -fx-text-fill: #f5f6fa;
 }
 
 .chip-runnable:selected {
-    -fx-background-color: #a6e3a1;
-    -fx-border-color: #a6e3a1;
-    -fx-text-fill: #1e1e2e;
+    -fx-background-color: #3677e0;
+    -fx-border-color: #3677e0;
+    -fx-text-fill: #f5f6fa;
 }
 
 .chip-problem:selected {

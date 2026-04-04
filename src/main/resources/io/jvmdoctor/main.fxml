@@ -47,12 +47,14 @@
                 <!-- 요약 행: 수평 — 왼쪽: 차트 | 오른쪽: 메트릭 -->
                 <SplitPane dividerPositions="0.68" styleClass="summary-split">
 
-                    <VBox styleClass="chart-card summary-row">
+                    <VBox styleClass="chart-card summary-row" spacing="10">
                         <padding><Insets top="10" right="12" bottom="10" left="12"/></padding>
                         <Label text="Thread States" styleClass="card-title"/>
                         <PieChart fx:id="stateChart" prefHeight="160"
                                   animated="true" labelsVisible="true" legendVisible="false"
                                   VBox.vgrow="ALWAYS"/>
+                        <FlowPane fx:id="stateLegend" hgap="8" vgap="8" prefWrapLength="440"
+                                  styleClass="state-legend"/>
                     </VBox>
 
                     <!-- Key Metrics: 3-column card -->

@@ -8,12 +8,16 @@ import javafx.collections.FXCollections;
 import javafx.css.PseudoClass;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
+import javafx.scene.Node;
 import javafx.scene.chart.PieChart;
 import javafx.scene.control.*;
 import javafx.scene.input.Dragboard;
 import javafx.scene.input.DragEvent;
 import javafx.scene.input.TransferMode;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.FlowPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.Region;
 import javafx.stage.FileChooser;
 
 import java.io.File;
@@ -25,11 +29,21 @@ import java.util.List;
 import java.util.Map;
 import java.util.ResourceBundle;
 import java.util.Set;
+import java.util.Comparator;
 
 public class MainController implements Initializable {
 
     private static final PseudoClass DRAG_OVER = PseudoClass.getPseudoClass("drag-over");
     private static final String DROP_HINT_STATUS = "Drop a thread dump file to load and analyze.";
+    private static final Map<String, String> STATE_COLORS = Map.of(
+            "BLOCKED", "#c73a4f",
+            "WAITING", "#b99132",
+            "TIMED_WAITING", "#8c6a45",
+            "RUNNABLE", "#3677e0",
+            "NEW", "#628c7b",
+            "TERMINATED", "#70798a",
+            "UNKNOWN", "#7c8898"
+    );
 
     // --- Toolbar ---
     @FXML private BorderPane rootPane;
@@ -41,6 +55,7 @@ public class MainController implements Initializable {
 
     // --- Summary panel ---
     @FXML private PieChart stateChart;
+    @FXML private FlowPane stateLegend;
     @FXML private Label totalLabel;
     @FXML private Label blockedLabel;
     @FXML private Label deadlockLabel;
@@ -88,6 +103,7 @@ public class MainController implements Initializable {
     private boolean deadlockMetricFilterActive = false;
     private Set<String> deadlockedThreadNames = Set.of();
     private String statusBeforeDrag;
+    private boolean stateChartRefreshScheduled = false;
 
     private final JstackParser parser = new JstackParser();
     private final DeadlockAnalyzer deadlockAnalyzer = new DeadlockAnalyzer();
@@ -241,19 +257,25 @@ public class MainController implements Initializable {
 
         // Pie chart
         Map<String, Long> dist = dump.stateDistribution();
-        var chartData = FXCollections.<PieChart.Data>observableArrayList();
-        dist.forEach((state, count) -> chartData.add(new PieChart.Data(state, count)));
+        var chartData = FXCollections.<PieChart.Data>observableArrayList(
+                dist.entrySet().stream()
+                        .sorted(Comparator
+                                .comparingInt((Map.Entry<String, Long> entry) -> statePriority(entry.getKey()))
+                                .thenComparing(Map.Entry::getKey))
+                        .map(entry -> new PieChart.Data(formatStateLabel(entry.getKey(), entry.getValue()), entry.getValue()))
+                        .toList()
+        );
         stateChart.setData(chartData);
         stateChart.setLabelsVisible(true);
         stateChart.setLegendVisible(false);
 
         Platform.runLater(() -> {
             for (PieChart.Data data : stateChart.getData()) {
-                String state = data.getName();
+                String state = extractStateName(data.getName());
                 data.getNode().setStyle("-fx-cursor: hand;");
                 data.getNode().setOnMouseClicked(e -> toggleStateMetricFilter(state));
             }
-            updateStateChartHighlight();
+            scheduleStateChartRefresh();
         });
 
         // Metrics
@@ -319,6 +341,41 @@ public class MainController implements Initializable {
         updateStateChartHighlight();
     }
 
+    private void scheduleStateChartRefresh() {
+        if (stateChartRefreshScheduled) {
+            return;
+        }
+        stateChartRefreshScheduled = true;
+        Platform.runLater(() -> {
+            stateChartRefreshScheduled = false;
+            refreshStateChartDecorations();
+        });
+    }
+
+    private void refreshStateChartDecorations() {
+        if (stateChart.getData() == null) {
+            return;
+        }
+
+        stateLegend.getChildren().clear();
+        boolean needsRetry = false;
+
+        for (PieChart.Data data : stateChart.getData()) {
+            createLegendItem(data);
+            Node slice = data.getNode();
+            if (slice == null) {
+                needsRetry = true;
+                continue;
+            }
+            slice.setStyle("-fx-pie-color: " + colorForState(extractStateName(data.getName())) + "; -fx-cursor: hand;");
+        }
+
+        updateStateChartHighlight();
+        if (needsRetry) {
+            scheduleStateChartRefresh();
+        }
+    }
+
     private void updateStateChartHighlight() {
         if (stateChart.getData() == null) {
             return;
@@ -327,9 +384,50 @@ public class MainController implements Initializable {
             if (data.getNode() == null) {
                 return;
             }
-            boolean active = activeStateFilter == null || data.getName().equals(activeStateFilter);
+            boolean active = activeStateFilter == null || extractStateName(data.getName()).equals(activeStateFilter);
             data.getNode().setOpacity(active ? 1.0 : 0.35);
         });
+    }
+
+    private void createLegendItem(PieChart.Data data) {
+        String state = extractStateName(data.getName());
+        Region swatch = new Region();
+        swatch.getStyleClass().add("state-legend-swatch");
+        swatch.setStyle("-fx-background-color: " + colorForState(state) + ";");
+
+        Label stateLabel = new Label(state);
+        stateLabel.getStyleClass().add("state-legend-label");
+
+        Label countLabel = new Label(String.valueOf((long) data.getPieValue()));
+        countLabel.getStyleClass().add("state-legend-count");
+
+        HBox item = new HBox(6, swatch, stateLabel, countLabel);
+        item.getStyleClass().add("state-legend-item");
+        stateLegend.getChildren().add(item);
+    }
+
+    private String colorForState(String state) {
+        return STATE_COLORS.getOrDefault(state.toUpperCase(), STATE_COLORS.get("UNKNOWN"));
+    }
+
+    private String formatStateLabel(String state, long count) {
+        return state + " (" + count + ")";
+    }
+
+    private String extractStateName(String label) {
+        return label.replaceFirst("\\s*\\(\\d+\\)$", "");
+    }
+
+    private int statePriority(String state) {
+        return switch (state.toUpperCase()) {
+            case "BLOCKED" -> 0;
+            case "WAITING" -> 1;
+            case "TIMED_WAITING" -> 2;
+            case "RUNNABLE" -> 3;
+            case "NEW" -> 4;
+            case "TERMINATED" -> 5;
+            default -> 99;
+        };
     }
 
     @FXML

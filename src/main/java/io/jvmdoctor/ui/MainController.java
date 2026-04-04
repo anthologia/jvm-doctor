@@ -20,9 +20,11 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.file.Files;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.ResourceBundle;
+import java.util.Set;
 
 public class MainController implements Initializable {
 
@@ -83,14 +85,17 @@ public class MainController implements Initializable {
     private ThreadDump currentDump;
     private String rawDumpText;
     private String activeStateFilter = null;
+    private boolean deadlockMetricFilterActive = false;
+    private Set<String> deadlockedThreadNames = Set.of();
     private String statusBeforeDrag;
 
     private final JstackParser parser = new JstackParser();
+    private final DeadlockAnalyzer deadlockAnalyzer = new DeadlockAnalyzer();
     private final TopFramesAnalyzer topFramesAnalyzer = new TopFramesAnalyzer();
     private final ThreadPoolGrouper poolGrouper = new ThreadPoolGrouper();
     private final DumpDiffer dumpDiffer = new DumpDiffer();
     private final List<Analyzer> analyzers = List.of(
-            new DeadlockAnalyzer(),
+            deadlockAnalyzer,
             new ThreadStateAnalyzer(),
             new LockContentionAnalyzer(),
             topFramesAnalyzer
@@ -99,6 +104,7 @@ public class MainController implements Initializable {
     @Override
     public void initialize(URL location, ResourceBundle resources) {
         configureFileDrop();
+        configureMetricFilters();
         navList.setItems(FXCollections.observableArrayList("Summary", "Deadlock", "Threads", "Top Frames", "Thread Pools", "Dump Diff", "Timeline", "Locks"));
         navList.getSelectionModel().select(0);
         navList.getSelectionModel().selectedItemProperty().addListener((obs, old, selected) -> {
@@ -115,6 +121,25 @@ public class MainController implements Initializable {
         });
 
         updateStatus("Ready. Open, drop, or paste a thread dump to begin.");
+    }
+
+    private void configureMetricFilters() {
+        configureMetricLabel(totalLabel, () -> {
+            clearSummaryThreadFilter();
+            updateStatus("Showing all threads.");
+        });
+        configureMetricLabel(blockedLabel, () -> toggleStateMetricFilter("BLOCKED"));
+        configureMetricLabel(deadlockLabel, this::toggleDeadlockMetricFilter);
+    }
+
+    private void configureMetricLabel(Label label, Runnable action) {
+        label.getStyleClass().add("metric-number-clickable");
+        label.setOnMouseClicked(e -> {
+            if (currentDump == null) {
+                return;
+            }
+            action.run();
+        });
     }
 
     @FXML
@@ -186,10 +211,11 @@ public class MainController implements Initializable {
                     topFramesController.setFrames(topFramesAnalyzer.topFrames(dump, 100));
                     threadPoolController.setPools(poolGrouper.group(dump));
                     topFramesController.setOnFrameClicked(frameKey -> {
+                        clearSummarySelectionVisuals();
                         threadTableController.filterByFrame(frameKey);
                         if (frameKey != null) {
                             contentTabs.getSelectionModel().select(threadsTab);
-                            updateStatus("Filtered to threads containing: " + frameKey + "  (click again to clear)");
+                            updateStatus("Filtered to threads containing: " + frameKey + "  (double-click again to clear)");
                         } else {
                             updateStatus("Frame filter cleared.");
                         }
@@ -207,38 +233,27 @@ public class MainController implements Initializable {
     }
 
     private void updateSummary(ThreadDump dump, List<AnalysisReport> reports) {
-        // Pie chart
         activeStateFilter = null;
+        deadlockMetricFilterActive = false;
+        deadlockedThreadNames = deadlockAnalyzer.findDeadlockCycles(dump).stream()
+                .flatMap(List::stream)
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+
+        // Pie chart
         Map<String, Long> dist = dump.stateDistribution();
         var chartData = FXCollections.<PieChart.Data>observableArrayList();
-        dist.forEach((state, count) -> chartData.add(new PieChart.Data(state + " (" + count + ")", count)));
+        dist.forEach((state, count) -> chartData.add(new PieChart.Data(state, count)));
         stateChart.setData(chartData);
         stateChart.setLabelsVisible(true);
         stateChart.setLegendVisible(false);
 
-        // 슬라이스 클릭 → 상태 필터 (재클릭 시 해제)
         Platform.runLater(() -> {
             for (PieChart.Data data : stateChart.getData()) {
-                String state = data.getName().replaceAll("\\s*\\(\\d+\\)$", ""); // "RUNNABLE (5)" → "RUNNABLE"
+                String state = data.getName();
                 data.getNode().setStyle("-fx-cursor: hand;");
-                data.getNode().setOnMouseClicked(e -> {
-                    if (state.equals(activeStateFilter)) {
-                        // 토글 해제
-                        activeStateFilter = null;
-                        threadTableController.filterByState(null);
-                        stateChart.getData().forEach(d -> d.getNode().setOpacity(1.0));
-                        updateStatus("State filter cleared.");
-                    } else {
-                        // 해당 상태로 필터
-                        activeStateFilter = state;
-                        threadTableController.filterByState(state);
-                        contentTabs.getSelectionModel().select(threadsTab);
-                        stateChart.getData().forEach(d ->
-                                d.getNode().setOpacity(d == data ? 1.0 : 0.35));
-                        updateStatus("Filtered by state: " + state + "  (click again to clear)");
-                    }
-                });
+                data.getNode().setOnMouseClicked(e -> toggleStateMetricFilter(state));
             }
+            updateStateChartHighlight();
         });
 
         // Metrics
@@ -256,6 +271,65 @@ public class MainController implements Initializable {
         } else {
             deadlockLabel.getStyleClass().remove("metric-number-deadlock-active");
         }
+    }
+
+    private void toggleStateMetricFilter(String state) {
+        if (state.equals(activeStateFilter) && !deadlockMetricFilterActive) {
+            clearSummaryThreadFilter();
+            updateStatus("State filter cleared.");
+            return;
+        }
+
+        activeStateFilter = state;
+        deadlockMetricFilterActive = false;
+        threadTableController.filterByState(state);
+        contentTabs.getSelectionModel().select(threadsTab);
+        updateStateChartHighlight();
+        updateStatus("Filtered by state: " + state + "  (click again to clear)");
+    }
+
+    private void toggleDeadlockMetricFilter() {
+        if (deadlockedThreadNames.isEmpty()) {
+            updateStatus("No deadlocked threads in the current dump.");
+            return;
+        }
+        if (deadlockMetricFilterActive) {
+            clearSummaryThreadFilter();
+            updateStatus("Deadlock thread filter cleared.");
+            return;
+        }
+
+        activeStateFilter = null;
+        deadlockMetricFilterActive = true;
+        threadTableController.filterByThreadNames(deadlockedThreadNames);
+        contentTabs.getSelectionModel().select(threadsTab);
+        updateStateChartHighlight();
+        updateStatus("Filtered to threads involved in deadlocks.");
+    }
+
+    private void clearSummaryThreadFilter() {
+        clearSummarySelectionVisuals();
+        threadTableController.clearQuickFilters();
+        contentTabs.getSelectionModel().select(threadsTab);
+    }
+
+    private void clearSummarySelectionVisuals() {
+        activeStateFilter = null;
+        deadlockMetricFilterActive = false;
+        updateStateChartHighlight();
+    }
+
+    private void updateStateChartHighlight() {
+        if (stateChart.getData() == null) {
+            return;
+        }
+        stateChart.getData().forEach(data -> {
+            if (data.getNode() == null) {
+                return;
+            }
+            boolean active = activeStateFilter == null || data.getName().equals(activeStateFilter);
+            data.getNode().setOpacity(active ? 1.0 : 0.35);
+        });
     }
 
     @FXML

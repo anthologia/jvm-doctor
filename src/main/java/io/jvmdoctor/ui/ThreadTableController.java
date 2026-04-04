@@ -31,6 +31,7 @@ public class ThreadTableController implements Initializable {
     private SortedList<ThreadInfo> sortedThreads;
 
     private final Set<String> selectedStates = new HashSet<>();
+    private Set<String> threadNameFilter = null;
     private String frameFilter = null;
 
     private static final List<String> PROBLEM_STATES = List.of("BLOCKED", "WAITING", "TIMED_WAITING");
@@ -121,6 +122,7 @@ public class ThreadTableController implements Initializable {
     public void setThreads(List<ThreadInfo> threads) {
         allThreads.setAll(threads);
         selectedStates.clear();
+        threadNameFilter = null;
         frameFilter = null;
         problemOnlyBtn.setSelected(false);
         filterField.clear();
@@ -129,6 +131,7 @@ public class ThreadTableController implements Initializable {
 
     /** Top Frames 클릭 시 호출. null이면 프레임 필터 해제. */
     public void filterByFrame(String frameKey) {
+        threadNameFilter = null;
         this.frameFilter = frameKey;
         selectedStates.clear();
         problemOnlyBtn.setSelected(false);
@@ -138,9 +141,31 @@ public class ThreadTableController implements Initializable {
 
     /** 파이차트 슬라이스 클릭 시 호출. null이면 필터 해제. */
     public void filterByState(String state) {
+        threadNameFilter = null;
+        frameFilter = null;
         selectedStates.clear();
         problemOnlyBtn.setSelected(false);
         if (state != null) selectedStates.add(state.toUpperCase());
+        syncChipsToSelectedStates();
+        applyFilter(filterField.getText());
+    }
+
+    /** 요약 메트릭 클릭 시 호출. 지정된 스레드 이름 집합으로 필터링한다. */
+    public void filterByThreadNames(Set<String> threadNames) {
+        threadNameFilter = (threadNames == null || threadNames.isEmpty()) ? null : new HashSet<>(threadNames);
+        frameFilter = null;
+        selectedStates.clear();
+        problemOnlyBtn.setSelected(false);
+        syncChipsToSelectedStates();
+        applyFilter(filterField.getText());
+    }
+
+    /** 상태/프레임/메트릭 기반 quick filter를 모두 해제한다. */
+    public void clearQuickFilters() {
+        threadNameFilter = null;
+        frameFilter = null;
+        selectedStates.clear();
+        problemOnlyBtn.setSelected(false);
         syncChipsToSelectedStates();
         applyFilter(filterField.getText());
     }
@@ -195,7 +220,8 @@ public class ThreadTableController implements Initializable {
             boolean frameMatch = frameFilter == null
                     || (t.stackFrames() != null && t.stackFrames().stream()
                             .anyMatch(f -> (f.className() + "." + f.methodName()).equals(frameFilter)));
-            return stateMatch && textMatch && frameMatch;
+            boolean nameMatch = threadNameFilter == null || threadNameFilter.contains(t.name());
+            return stateMatch && textMatch && frameMatch && nameMatch;
         });
     }
 }

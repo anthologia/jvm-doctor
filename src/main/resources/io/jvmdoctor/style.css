@@ -129,6 +129,14 @@
     -fx-font-weight: bold;
 }
 
+.metric-number-clickable {
+    -fx-cursor: hand;
+}
+
+.metric-number-clickable:hover {
+    -fx-effect: dropshadow(gaussian, rgba(137, 180, 250, 0.25), 10, 0.2, 0, 0);
+}
+
 .metric-number-blocked {
     -fx-text-fill: #fab387;
 }

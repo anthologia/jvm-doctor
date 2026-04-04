@@ -87,11 +87,11 @@ public class TopFramesController implements Initializable {
                     || f.methodName().toLowerCase().contains(lower));
         });
 
-        // Row click: toggle frame filter
+        // Double-click a row to toggle the linked thread filter.
         framesTable.setRowFactory(tv -> {
             TableRow<FrameStat> row = new TableRow<>();
             row.setOnMouseClicked(e -> {
-                if (e.getClickCount() == 1 && !row.isEmpty()) {
+                if (e.getClickCount() == 2 && !row.isEmpty()) {
                     String key = row.getItem().frameKey();
                     if (key.equals(selectedFrameKey)) {
                         selectedFrameKey = null;

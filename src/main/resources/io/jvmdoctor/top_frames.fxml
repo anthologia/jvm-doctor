@@ -30,6 +30,6 @@
         </placeholder>
     </TableView>
 
-    <Label text="Click a row to filter the Threads tab to matching threads. Click again to clear."
+    <Label text="Double-click a row to filter the Threads tab to matching threads. Double-click again to clear."
            styleClass="filter-label" style="-fx-font-style: italic;"/>
 </VBox>

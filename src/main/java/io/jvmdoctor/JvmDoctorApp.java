@@ -27,22 +27,43 @@ public class JvmDoctorApp extends Application {
         primaryStage.setScene(scene);
         primaryStage.setMinWidth(800);
         primaryStage.setMinHeight(550);
-        primaryStage.show();
-
+        boolean launchedWithFile = openLaunchFile(controller);
         installOpenFileHandler(controller);
-        openLaunchFile(controller);
+        scheduleSessionRestore(primaryStage, controller, launchedWithFile);
+        primaryStage.show();
     }
 
     public static void main(String[] args) {
         launch(args);
     }
 
-    private void openLaunchFile(MainController controller) {
-        List<String> launchFiles = getParameters().getUnnamed();
+    private boolean openLaunchFile(MainController controller) {
+        List<File> launchFiles = getParameters().getUnnamed().stream()
+                .filter(arg -> arg != null && !arg.isBlank())
+                .filter(arg -> !arg.startsWith("-"))
+                .map(File::new)
+                .filter(File::isFile)
+                .map(File::getAbsoluteFile)
+                .toList();
         if (launchFiles.isEmpty()) {
+            return false;
+        }
+        Platform.runLater(() -> controller.openDumpFile(launchFiles.get(0)));
+        return true;
+    }
+
+    private void scheduleSessionRestore(Stage primaryStage, MainController controller, boolean launchedWithFile) {
+        if (launchedWithFile) {
             return;
         }
-        Platform.runLater(() -> controller.openDumpFile(new File(launchFiles.get(0))));
+        primaryStage.setOnShown(event -> Platform.runLater(() -> {
+            if (controller.hasLoadedDump()) {
+                return;
+            }
+            primaryStage.toFront();
+            controller.promptRestoreLastSessionIfAvailable();
+            primaryStage.requestFocus();
+        }));
     }
 
     private void installOpenFileHandler(MainController controller) {

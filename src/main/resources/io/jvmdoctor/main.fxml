@@ -58,31 +58,47 @@
                     </VBox>
 
                     <!-- Key Metrics: 3-column card -->
-                    <VBox styleClass="metrics-card summary-row" spacing="8">
+                    <VBox styleClass="metrics-card summary-row" spacing="10">
                         <padding><Insets top="10" right="12" bottom="10" left="12"/></padding>
                         <Label text="KEY METRICS" styleClass="card-title"/>
-                        <HBox VBox.vgrow="ALWAYS" alignment="CENTER">
+                        <HBox VBox.vgrow="ALWAYS" alignment="CENTER" spacing="4" styleClass="metrics-row">
 
                             <VBox HBox.hgrow="ALWAYS" alignment="CENTER" spacing="4">
                                 <Label fx:id="totalLabel" text="—" styleClass="metric-number"/>
                                 <Label text="TOTAL" styleClass="metric-name"/>
                             </VBox>
 
-                            <Separator orientation="VERTICAL" style="-fx-pref-height: 48;"/>
+                            <Separator orientation="VERTICAL" styleClass="metrics-separator"/>
 
                             <VBox HBox.hgrow="ALWAYS" alignment="CENTER" spacing="4">
-                                <Label fx:id="blockedLabel" text="—" styleClass="metric-number, metric-number-blocked"/>
-                                <Label text="BLOCKED" styleClass="metric-name"/>
+                                <Label fx:id="criticalLabel" text="—" styleClass="metric-number, metric-number-critical"/>
+                                <Label text="CRITICAL" styleClass="metric-name"/>
                             </VBox>
 
-                            <Separator orientation="VERTICAL" style="-fx-pref-height: 48;"/>
+                            <Separator orientation="VERTICAL" styleClass="metrics-separator"/>
 
                             <VBox HBox.hgrow="ALWAYS" alignment="CENTER" spacing="4">
-                                <Label fx:id="deadlockLabel" text="—" styleClass="metric-number, metric-number-deadlock"/>
-                                <Label text="DEADLOCKS" styleClass="metric-name"/>
+                                <Label fx:id="deadlockedLabel" text="—" styleClass="metric-number, metric-number-deadlocked"/>
+                                <Label text="DEADLOCKED" styleClass="metric-name"/>
+                            </VBox>
+
+                            <Separator orientation="VERTICAL" styleClass="metrics-separator"/>
+
+                            <VBox HBox.hgrow="ALWAYS" alignment="CENTER" spacing="4">
+                                <Label fx:id="hotLockLabel" text="—" styleClass="metric-number, metric-number-hot-lock"/>
+                                <Label text="HOT LOCK" styleClass="metric-name"/>
+                            </VBox>
+
+                            <Separator orientation="VERTICAL" styleClass="metrics-separator"/>
+
+                            <VBox HBox.hgrow="ALWAYS" alignment="CENTER" spacing="4">
+                                <Label fx:id="poolIssueLabel" text="—" styleClass="metric-number, metric-number-pool-issues"/>
+                                <Label text="POOL ISSUES" styleClass="metric-name"/>
                             </VBox>
 
                         </HBox>
+                        <Label fx:id="summaryHintLabel" text="Load a dump to see issue hints." wrapText="true"
+                               styleClass="status-label"/>
                     </VBox>
 
                 </SplitPane>
@@ -115,7 +131,7 @@
                     </Tab>
 
                     <!-- Raw Dump 탭: 검색바 + TextArea -->
-                    <Tab text="Raw Dump">
+                    <Tab fx:id="rawTab" text="Raw Dump">
                         <VBox spacing="0">
                             <HBox spacing="8" alignment="CENTER_LEFT" styleClass="raw-search-bar">
                                 <padding><Insets top="6" right="10" bottom="6" left="10"/></padding>

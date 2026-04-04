@@ -18,12 +18,14 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Region;
+import javafx.stage.Modality;
 import javafx.stage.FileChooser;
 
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +37,8 @@ public class MainController implements Initializable {
 
     private static final PseudoClass DRAG_OVER = PseudoClass.getPseudoClass("drag-over");
     private static final String DROP_HINT_STATUS = "Drop a thread dump file to load and analyze.";
+    private static final Path SESSION_DIR = Path.of(System.getProperty("user.home"), ".jvm-doctor");
+    private static final Path LAST_DUMP_PATH_FILE = SESSION_DIR.resolve("last-dump-path.txt");
     private static final Map<String, String> STATE_COLORS = Map.of(
             "BLOCKED", "#c73a4f",
             "WAITING", "#b99132",
@@ -57,13 +61,17 @@ public class MainController implements Initializable {
     @FXML private PieChart stateChart;
     @FXML private FlowPane stateLegend;
     @FXML private Label totalLabel;
-    @FXML private Label blockedLabel;
-    @FXML private Label deadlockLabel;
+    @FXML private Label criticalLabel;
+    @FXML private Label deadlockedLabel;
+    @FXML private Label hotLockLabel;
+    @FXML private Label poolIssueLabel;
+    @FXML private Label summaryHintLabel;
 
     // --- Content tabs ---
     @FXML private TabPane contentTabs;
     @FXML private Tab threadsTab;
     @FXML private Tab deadlockTab;
+    @FXML private Tab rawTab;
 
     // --- Thread table (injected sub-controller) ---
     @FXML private ThreadTableController threadTableController;
@@ -99,9 +107,13 @@ public class MainController implements Initializable {
 
     private ThreadDump currentDump;
     private String rawDumpText;
-    private String activeStateFilter = null;
-    private boolean deadlockMetricFilterActive = false;
+    private String currentSourceFilePath;
+    private final Set<String> activeStateFilters = new LinkedHashSet<>();
+    private String activeMetricFilterKey;
     private Set<String> deadlockedThreadNames = Set.of();
+    private Set<String> criticalThreadNames = Set.of();
+    private HotLockFocus hotLockFocus = HotLockFocus.empty();
+    private PoolIssueFocus poolIssueFocus = PoolIssueFocus.empty();
     private String statusBeforeDrag;
     private boolean stateChartRefreshScheduled = false;
 
@@ -110,10 +122,33 @@ public class MainController implements Initializable {
     private final TopFramesAnalyzer topFramesAnalyzer = new TopFramesAnalyzer();
     private final ThreadPoolGrouper poolGrouper = new ThreadPoolGrouper();
     private final DumpDiffer dumpDiffer = new DumpDiffer();
+    private static final List<String> NAV_ITEMS = List.of(
+            "Threads", "Deadlock / Issues", "Top Frames", "Thread Pools", "Dump Diff", "Timeline", "Raw Dump");
+    private record HotLockFocus(String lockLabel, long waiterCount, Set<String> affectedThreadNames, String ownerThreadName) {
+        static HotLockFocus empty() {
+            return new HotLockFocus("", 0, Set.of(), null);
+        }
+
+        boolean present() {
+            return waiterCount > 0;
+        }
+    }
+
+    private record PoolIssueFocus(long poolCount, Set<String> affectedThreadNames, Set<String> criticalThreadNames) {
+        static PoolIssueFocus empty() {
+            return new PoolIssueFocus(0, Set.of(), Set.of());
+        }
+
+        boolean present() {
+            return poolCount > 0 && !affectedThreadNames.isEmpty();
+        }
+    }
     private final List<Analyzer> analyzers = List.of(
             deadlockAnalyzer,
             new ThreadStateAnalyzer(),
             new LockContentionAnalyzer(),
+            new ThreadPoolHealthAnalyzer(),
+            new EventLoopBlockingAnalyzer(),
             topFramesAnalyzer
     );
 
@@ -121,20 +156,24 @@ public class MainController implements Initializable {
     public void initialize(URL location, ResourceBundle resources) {
         configureFileDrop();
         configureMetricFilters();
-        navList.setItems(FXCollections.observableArrayList("Summary", "Deadlock", "Threads", "Top Frames", "Thread Pools", "Dump Diff", "Timeline", "Locks"));
-        navList.getSelectionModel().select(0);
+        threadTableController.setOnLocateRawRequested(this::locateThreadInRaw);
+        threadTableController.setOnStatusMessage(this::updateStatus);
+        navList.setItems(FXCollections.observableArrayList(NAV_ITEMS));
         navList.getSelectionModel().selectedItemProperty().addListener((obs, old, selected) -> {
             if (selected == null) return;
-            switch (selected) {
-                case "Deadlock"      -> contentTabs.getSelectionModel().select(deadlockTab);
-                case "Threads"       -> contentTabs.getSelectionModel().select(threadsTab);
-                case "Top Frames"    -> contentTabs.getSelectionModel().select(topFramesTab);
-                case "Thread Pools"  -> contentTabs.getSelectionModel().select(threadPoolTab);
-                case "Dump Diff"     -> contentTabs.getSelectionModel().select(dumpDiffTab);
-                case "Timeline"      -> contentTabs.getSelectionModel().select(timelineTab);
-                default              -> contentTabs.getSelectionModel().select(0);
+            Tab target = tabForNavItem(selected);
+            if (target != null && contentTabs.getSelectionModel().getSelectedItem() != target) {
+                contentTabs.getSelectionModel().select(target);
             }
         });
+        contentTabs.getSelectionModel().selectedItemProperty().addListener((obs, old, selected) -> {
+            String navItem = navItemForTab(selected);
+            if (navItem != null && !navItem.equals(navList.getSelectionModel().getSelectedItem())) {
+                navList.getSelectionModel().select(navItem);
+            }
+        });
+        contentTabs.getSelectionModel().select(threadsTab);
+        navList.getSelectionModel().select("Threads");
 
         updateStatus("Ready. Open, drop, or paste a thread dump to begin.");
     }
@@ -144,18 +183,81 @@ public class MainController implements Initializable {
             clearSummaryThreadFilter();
             updateStatus("Showing all threads.");
         });
-        configureMetricLabel(blockedLabel, () -> toggleStateMetricFilter("BLOCKED"));
-        configureMetricLabel(deadlockLabel, this::toggleDeadlockMetricFilter);
+        configureMetricLabel(criticalLabel, () -> toggleMetricThreadFilter(
+                "critical",
+                criticalThreadNames,
+                "No critical issue threads in the current dump.",
+                "Filtered to threads implicated in critical issues.",
+                "Critical issue thread filter cleared."));
+        configureMetricLabel(deadlockedLabel, () -> toggleMetricThreadFilter(
+                "deadlocked",
+                deadlockedThreadNames,
+                "No deadlocked threads in the current dump.",
+                "Filtered to deadlocked threads.",
+                "Deadlocked thread filter cleared."));
+        configureMetricLabel(hotLockLabel, this::toggleHotLockMetricFilter);
+        configureMetricLabel(poolIssueLabel, this::togglePoolIssueMetricFilter);
     }
 
     private void configureMetricLabel(Label label, Runnable action) {
         label.getStyleClass().add("metric-number-clickable");
+        if (label.getParent() instanceof Region region) {
+            region.getStyleClass().add("metric-tile-clickable");
+            region.setOnMouseClicked(e -> {
+                if (currentDump == null) {
+                    return;
+                }
+                action.run();
+            });
+            return;
+        }
         label.setOnMouseClicked(e -> {
             if (currentDump == null) {
                 return;
             }
             action.run();
         });
+    }
+
+    private Tab tabForNavItem(String navItem) {
+        return switch (navItem) {
+            case "Threads" -> threadsTab;
+            case "Deadlock / Issues" -> deadlockTab;
+            case "Top Frames" -> topFramesTab;
+            case "Thread Pools" -> threadPoolTab;
+            case "Dump Diff" -> dumpDiffTab;
+            case "Timeline" -> timelineTab;
+            case "Raw Dump" -> rawTab;
+            default -> null;
+        };
+    }
+
+    private String navItemForTab(Tab tab) {
+        if (tab == null) {
+            return null;
+        }
+        if (tab == threadsTab) {
+            return "Threads";
+        }
+        if (tab == deadlockTab) {
+            return "Deadlock / Issues";
+        }
+        if (tab == topFramesTab) {
+            return "Top Frames";
+        }
+        if (tab == threadPoolTab) {
+            return "Thread Pools";
+        }
+        if (tab == dumpDiffTab) {
+            return "Dump Diff";
+        }
+        if (tab == timelineTab) {
+            return "Timeline";
+        }
+        if (tab == rawTab) {
+            return "Raw Dump";
+        }
+        return null;
     }
 
     @FXML
@@ -188,6 +290,7 @@ public class MainController implements Initializable {
         ((TextInputDialog) dialog).getEditor().setManaged(false);
         dialog.getDialogPane().setContent(ta);
         dialog.getDialogPane().setPrefWidth(700);
+        styleDialog(dialog);
 
         dialog.setResultConverter(btn -> {
             if (btn == ButtonType.OK) return ta.getText();
@@ -196,6 +299,7 @@ public class MainController implements Initializable {
 
         dialog.showAndWait().ifPresent(text -> {
             if (!text.isBlank()) {
+                currentSourceFilePath = null;
                 applyRawDumpText(text);
                 analyzeCurrentDump();
             }
@@ -206,23 +310,65 @@ public class MainController implements Initializable {
         loadDumpFile(file);
     }
 
+    public boolean hasLoadedDump() {
+        return rawDumpText != null && !rawDumpText.isBlank();
+    }
+
+    public void promptRestoreLastSessionIfAvailable() {
+        if (hasLoadedDump()) {
+            return;
+        }
+
+        String savedPath = readLastSessionPath();
+        if (savedPath == null || savedPath.isBlank()) {
+            return;
+        }
+
+        File file = new File(savedPath);
+        if (!file.isFile()) {
+            clearLastSessionPath();
+            return;
+        }
+
+        ButtonType reopenButton = new ButtonType("Reopen", ButtonBar.ButtonData.OK_DONE);
+        ButtonType skipButton = new ButtonType("No", ButtonBar.ButtonData.NO);
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION, file.getAbsolutePath(), reopenButton, skipButton);
+        alert.setTitle("Restore Previous Dump");
+        alert.setHeaderText("Reopen the last dump file?");
+        alert.initModality(Modality.WINDOW_MODAL);
+        if (rootPane.getScene() != null && rootPane.getScene().getWindow() != null) {
+            alert.initOwner(rootPane.getScene().getWindow());
+        }
+        styleDialog(alert);
+        ButtonType result = alert.showAndWait().orElse(skipButton);
+        if (result == reopenButton) {
+            openDumpFile(file);
+            return;
+        }
+        clearLastSessionPath();
+    }
+
     private void analyzeCurrentDump() {
         if (rawDumpText == null || rawDumpText.isBlank()) return;
+        String dumpText = rawDumpText;
 
         updateStatus("Analyzing...");
 
         // Parse + analyze off-thread to keep UI responsive
         Thread worker = new Thread(() -> {
             try {
-                ThreadDump dump = parser.parse(rawDumpText);
+                ThreadDump dump = parser.parse(dumpText);
                 List<AnalysisReport> reports = analyzers.stream()
                         .map(a -> a.analyze(dump))
                         .toList();
 
                 Platform.runLater(() -> {
                     currentDump = dump;
-                    updateSummary(dump, reports);
                     threadTableController.setThreads(dump.threads());
+                    threadTableController.setIssueContext(deadlockAnalyzer.findDeadlockCycles(dump).stream()
+                            .flatMap(List::stream)
+                            .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new)));
+                    updateSummary(dump, reports);
                     deadlockViewController.setReports(reports, dump);
                     topFramesController.setFrames(topFramesAnalyzer.topFrames(dump, 100));
                     threadPoolController.setPools(poolGrouper.group(dump));
@@ -249,11 +395,14 @@ public class MainController implements Initializable {
     }
 
     private void updateSummary(ThreadDump dump, List<AnalysisReport> reports) {
-        activeStateFilter = null;
-        deadlockMetricFilterActive = false;
+        activeStateFilters.clear();
+        activeMetricFilterKey = null;
         deadlockedThreadNames = deadlockAnalyzer.findDeadlockCycles(dump).stream()
                 .flatMap(List::stream)
                 .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        hotLockFocus = findHotLockFocus(dump);
+        poolIssueFocus = findPoolIssueFocus(dump);
+        criticalThreadNames = findCriticalThreadNames(dump, deadlockedThreadNames, hotLockFocus, poolIssueFocus);
 
         // Pie chart
         Map<String, Long> dist = dump.stateDistribution();
@@ -273,60 +422,85 @@ public class MainController implements Initializable {
             for (PieChart.Data data : stateChart.getData()) {
                 String state = extractStateName(data.getName());
                 data.getNode().setStyle("-fx-cursor: hand;");
-                data.getNode().setOnMouseClicked(e -> toggleStateMetricFilter(state));
+                data.getNode().setOnMouseClicked(e -> toggleStateMetricFilter(Set.of(state),
+                        "Filtered by state: " + state + "  (click again to clear)"));
             }
             scheduleStateChartRefresh();
         });
 
         // Metrics
         totalLabel.setText(String.valueOf(dump.threads().size()));
-        blockedLabel.setText(String.valueOf(dump.blockedCount()));
-
-        long deadlocks = reports.stream()
-                .filter(r -> r.analyzerName().equals("Deadlock Analyzer"))
-                .flatMap(r -> r.findings().stream())
-                .filter(f -> f.severity() == AnalysisReport.Severity.CRITICAL)
-                .count();
-        deadlockLabel.setText(String.valueOf(deadlocks));
-        if (deadlocks > 0) {
-            deadlockLabel.getStyleClass().add("metric-number-deadlock-active");
-        } else {
-            deadlockLabel.getStyleClass().remove("metric-number-deadlock-active");
-        }
+        criticalLabel.setText(String.valueOf(criticalThreadNames.size()));
+        deadlockedLabel.setText(String.valueOf(deadlockedThreadNames.size()));
+        hotLockLabel.setText(String.valueOf(hotLockFocus.waiterCount()));
+        poolIssueLabel.setText(String.valueOf(poolIssueFocus.poolCount()));
+        summaryHintLabel.setText(buildSummaryHint(dump, reports));
     }
 
-    private void toggleStateMetricFilter(String state) {
-        if (state.equals(activeStateFilter) && !deadlockMetricFilterActive) {
+    private void toggleStateMetricFilter(Set<String> states, String statusMessage) {
+        if (activeMetricFilterKey == null && activeStateFilters.equals(states)) {
             clearSummaryThreadFilter();
             updateStatus("State filter cleared.");
             return;
         }
 
-        activeStateFilter = state;
-        deadlockMetricFilterActive = false;
-        threadTableController.filterByState(state);
+        activeStateFilters.clear();
+        activeStateFilters.addAll(states);
+        activeMetricFilterKey = null;
+        threadTableController.filterByStates(states);
         contentTabs.getSelectionModel().select(threadsTab);
         updateStateChartHighlight();
-        updateStatus("Filtered by state: " + state + "  (click again to clear)");
+        updateStatus(statusMessage);
     }
 
-    private void toggleDeadlockMetricFilter() {
-        if (deadlockedThreadNames.isEmpty()) {
-            updateStatus("No deadlocked threads in the current dump.");
+    private void toggleMetricThreadFilter(String key, Set<String> threadNames, String emptyStatus,
+                                          String applyStatus, String clearStatus) {
+        if (threadNames == null || threadNames.isEmpty()) {
+            updateStatus(emptyStatus);
             return;
         }
-        if (deadlockMetricFilterActive) {
+        if (key.equals(activeMetricFilterKey)) {
             clearSummaryThreadFilter();
-            updateStatus("Deadlock thread filter cleared.");
+            updateStatus(clearStatus);
             return;
         }
 
-        activeStateFilter = null;
-        deadlockMetricFilterActive = true;
-        threadTableController.filterByThreadNames(deadlockedThreadNames);
+        activeStateFilters.clear();
+        activeMetricFilterKey = key;
+        threadTableController.filterByThreadNames(threadNames);
         contentTabs.getSelectionModel().select(threadsTab);
         updateStateChartHighlight();
-        updateStatus("Filtered to threads involved in deadlocks.");
+        updateStatus(applyStatus);
+    }
+
+    private void toggleHotLockMetricFilter() {
+        if (!hotLockFocus.present()) {
+            updateStatus("No lock hotspot detected in the current dump.");
+            return;
+        }
+        String detail = hotLockFocus.lockLabel() + " with " + hotLockFocus.waiterCount() + " waiter(s)";
+        if (hotLockFocus.ownerThreadName() != null && !hotLockFocus.ownerThreadName().isBlank()) {
+            detail += " and owner " + hotLockFocus.ownerThreadName();
+        }
+        toggleMetricThreadFilter(
+                "hot-lock",
+                hotLockFocus.affectedThreadNames(),
+                "No lock hotspot detected in the current dump.",
+                "Filtered to hottest lock: " + detail + ".",
+                "Hot lock thread filter cleared.");
+    }
+
+    private void togglePoolIssueMetricFilter() {
+        if (!poolIssueFocus.present()) {
+            updateStatus("No unhealthy thread pools detected in the current dump.");
+            return;
+        }
+        toggleMetricThreadFilter(
+                "pool-issues",
+                poolIssueFocus.affectedThreadNames(),
+                "No unhealthy thread pools detected in the current dump.",
+                "Filtered to threads in " + poolIssueFocus.poolCount() + " unhealthy pool(s).",
+                "Pool issue thread filter cleared.");
     }
 
     private void clearSummaryThreadFilter() {
@@ -336,8 +510,8 @@ public class MainController implements Initializable {
     }
 
     private void clearSummarySelectionVisuals() {
-        activeStateFilter = null;
-        deadlockMetricFilterActive = false;
+        activeStateFilters.clear();
+        activeMetricFilterKey = null;
         updateStateChartHighlight();
     }
 
@@ -384,7 +558,8 @@ public class MainController implements Initializable {
             if (data.getNode() == null) {
                 return;
             }
-            boolean active = activeStateFilter == null || extractStateName(data.getName()).equals(activeStateFilter);
+            boolean active = activeStateFilters.isEmpty()
+                    || activeStateFilters.contains(extractStateName(data.getName()));
             data.getNode().setOpacity(active ? 1.0 : 0.35);
         });
     }
@@ -416,6 +591,158 @@ public class MainController implements Initializable {
 
     private String extractStateName(String label) {
         return label.replaceFirst("\\s*\\(\\d+\\)$", "");
+    }
+
+    private String buildSummaryHint(ThreadDump dump, List<AnalysisReport> reports) {
+        long warningFindings = reports.stream()
+                .flatMap(r -> r.findings().stream())
+                .filter(f -> f.severity() == AnalysisReport.Severity.WARNING)
+                .count();
+
+        String criticalPart = criticalThreadNames.isEmpty()
+                ? "No critical threads"
+                : criticalThreadNames.size() + " critical thread(s)";
+        String hotspotPart = hotLockFocus.present()
+                ? hotLockFocus.lockLabel() + " hottest lock (" + hotLockFocus.waiterCount() + " waiter(s))"
+                : "No hot lock";
+        String poolPart = poolIssueFocus.present()
+                ? poolIssueFocus.poolCount() + " unhealthy pool(s)"
+                : "No unhealthy pools";
+
+        if (warningFindings > 0) {
+            return criticalPart + "  ·  " + poolPart + "  ·  " + hotspotPart + "  ·  " + warningFindings + " warning(s)";
+        }
+        return criticalPart + "  ·  " + poolPart + "  ·  " + hotspotPart;
+    }
+
+    private HotLockFocus findHotLockFocus(ThreadDump dump) {
+        Map<String, Long> waitersPerLock = dump.threads().stream()
+                .filter(t -> t.waitingOnLock() != null)
+                .collect(java.util.stream.Collectors.groupingBy(
+                        t -> t.waitingOnLock().lockId(),
+                        java.util.stream.Collectors.counting()));
+        if (waitersPerLock.isEmpty()) {
+            return HotLockFocus.empty();
+        }
+
+        Map<String, String> lockLabelById = dump.threads().stream()
+                .filter(t -> t.waitingOnLock() != null)
+                .collect(java.util.stream.Collectors.toMap(
+                        t -> t.waitingOnLock().lockId(),
+                        t -> {
+                            String className = t.waitingOnLock().lockClassName();
+                            return className == null || className.isBlank() ? t.waitingOnLock().lockId() : className;
+                        },
+                        (a, b) -> a));
+        Map<String, String> ownerByLockId = new java.util.HashMap<>();
+        for (var thread : dump.threads()) {
+            if (thread.heldLocks() == null) {
+                continue;
+            }
+            for (var lock : thread.heldLocks()) {
+                ownerByLockId.put(lock.lockId(), thread.name());
+            }
+        }
+
+        var hottest = waitersPerLock.entrySet().stream()
+                .max(Map.Entry.<String, Long>comparingByValue()
+                        .thenComparing(Map.Entry.comparingByKey()))
+                .orElse(null);
+        if (hottest == null) {
+            return HotLockFocus.empty();
+        }
+
+        String lockId = hottest.getKey();
+        Set<String> affectedThreads = dump.threads().stream()
+                .filter(t -> t.waitingOnLock() != null && lockId.equals(t.waitingOnLock().lockId()))
+                .map(t -> t.name())
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        String ownerThread = ownerByLockId.get(lockId);
+        if (ownerThread != null) {
+            affectedThreads.add(ownerThread);
+        }
+
+        String lockLabel = lockLabelById.getOrDefault(lockId, lockId);
+        return new HotLockFocus(lockLabel, hottest.getValue(), Set.copyOf(affectedThreads), ownerThread);
+    }
+
+    private PoolIssueFocus findPoolIssueFocus(ThreadDump dump) {
+        Set<String> affectedThreads = new LinkedHashSet<>();
+        Set<String> criticalPoolThreads = new LinkedHashSet<>();
+
+        List<io.jvmdoctor.analyzer.ThreadPool> issuePools = poolGrouper.group(dump).stream()
+                .filter(this::isIssuePool)
+                .toList();
+
+        for (var pool : issuePools) {
+            pool.threads().stream()
+                    .map(t -> t.name())
+                    .forEach(affectedThreads::add);
+            if (isCriticalPool(pool)) {
+                pool.threads().stream()
+                        .map(t -> t.name())
+                        .forEach(criticalPoolThreads::add);
+            }
+        }
+
+        return new PoolIssueFocus(issuePools.size(), Set.copyOf(affectedThreads), Set.copyOf(criticalPoolThreads));
+    }
+
+    private Set<String> findCriticalThreadNames(ThreadDump dump, Set<String> deadlockedThreads,
+                                                HotLockFocus hotLockFocus, PoolIssueFocus poolIssueFocus) {
+        Set<String> criticalThreads = new LinkedHashSet<>(deadlockedThreads);
+        if (hotLockFocus.waiterCount() >= 5) {
+            criticalThreads.addAll(hotLockFocus.affectedThreadNames());
+        }
+        criticalThreads.addAll(poolIssueFocus.criticalThreadNames());
+        dump.threads().stream()
+                .filter(this::isBlockedInfrastructureThread)
+                .map(t -> t.name())
+                .forEach(criticalThreads::add);
+        return Set.copyOf(criticalThreads);
+    }
+
+    private boolean isIssuePool(io.jvmdoctor.analyzer.ThreadPool pool) {
+        return pool.total() >= 3 && ("Contended".equals(pool.health()) || "Starved".equals(pool.health()));
+    }
+
+    private boolean isCriticalPool(io.jvmdoctor.analyzer.ThreadPool pool) {
+        return (pool.waiting() >= Math.max(3, Math.round(pool.total() * 0.8)) && pool.runnable() == 0 && pool.total() >= 8)
+                || pool.blocked() >= 4;
+    }
+
+    private boolean isBlockedInfrastructureThread(io.jvmdoctor.model.ThreadInfo thread) {
+        String name = thread.name();
+        return "BLOCKED".equalsIgnoreCase(thread.state())
+                && (name.matches("^nioEventLoopGroup-\\d+-\\d+$")
+                || name.matches("^qtp\\d+-\\d+$")
+                || name.matches("^((?:http|https|ajp)-nio(?:-\\d+)?)-exec-\\d+$")
+                || name.matches("^OkHttp\\s+.*")
+                || name.matches("^grpc-.*"));
+    }
+
+    private void locateThreadInRaw(io.jvmdoctor.model.ThreadInfo thread) {
+        if (thread == null || rawDumpText == null || rawDumpText.isBlank()) {
+            return;
+        }
+
+        String quotedName = "\"" + thread.name() + "\"";
+        int idx = rawDumpText.indexOf(quotedName);
+        if (idx < 0) {
+            updateStatus("Could not locate " + thread.name() + " in the raw dump.");
+            return;
+        }
+
+        int lineStart = rawDumpText.lastIndexOf('\n', idx);
+        int lineEnd = rawDumpText.indexOf('\n', idx);
+        int start = lineStart >= 0 ? lineStart + 1 : idx;
+        int end = lineEnd >= 0 ? lineEnd : rawDumpText.length();
+
+        contentTabs.getSelectionModel().select(rawTab);
+        rawTextArea.requestFocus();
+        rawTextArea.selectRange(start, end);
+        rawTextArea.positionCaret(start);
+        updateStatus("Located thread in Raw Dump: " + thread.name());
     }
 
     private int statePriority(String state) {
@@ -512,6 +839,11 @@ public class MainController implements Initializable {
     private void showError(String msg) {
         Alert alert = new Alert(Alert.AlertType.ERROR, msg, ButtonType.OK);
         alert.setTitle("Error");
+        alert.initModality(Modality.WINDOW_MODAL);
+        if (rootPane.getScene() != null && rootPane.getScene().getWindow() != null) {
+            alert.initOwner(rootPane.getScene().getWindow());
+        }
+        styleDialog(alert);
         alert.showAndWait();
         updateStatus("Error: " + msg);
     }
@@ -584,6 +916,8 @@ public class MainController implements Initializable {
 
         try {
             String dumpText = Files.readString(file.toPath());
+            currentSourceFilePath = file.getAbsoluteFile().toPath().normalize().toString();
+            persistLastSessionPath(currentSourceFilePath);
             applyRawDumpText(dumpText);
             updateStatus("Loaded: " + file.getName() + " (" + rawDumpText.length() + " chars)");
             analyzeCurrentDump();
@@ -600,5 +934,46 @@ public class MainController implements Initializable {
         rawSearchField.clear();
         rawMatchLabel.setText("");
         rawSearchFrom = 0;
+    }
+
+    private void persistLastSessionPath(String sourceFilePath) {
+        if (sourceFilePath == null || sourceFilePath.isBlank()) {
+            clearLastSessionPath();
+            return;
+        }
+        try {
+            Files.createDirectories(SESSION_DIR);
+            Files.writeString(LAST_DUMP_PATH_FILE, sourceFilePath);
+        } catch (IOException ignored) {
+        }
+    }
+
+    private void clearLastSessionPath() {
+        try {
+            Files.deleteIfExists(LAST_DUMP_PATH_FILE);
+        } catch (IOException ignored) {
+        }
+    }
+
+    private String readLastSessionPath() {
+        try {
+            if (!Files.isRegularFile(LAST_DUMP_PATH_FILE)) {
+                return null;
+            }
+            String savedPath = Files.readString(LAST_DUMP_PATH_FILE).trim();
+            return savedPath.isBlank() ? null : savedPath;
+        } catch (IOException ignored) {
+            return null;
+        }
+    }
+
+    private void styleDialog(Dialog<?> dialog) {
+        DialogPane pane = dialog.getDialogPane();
+        String stylesheet = getClass().getResource("/io/jvmdoctor/style.css").toExternalForm();
+        if (!pane.getStylesheets().contains(stylesheet)) {
+            pane.getStylesheets().add(stylesheet);
+        }
+        pane.getStyleClass().add("dialog-pane-dark");
+        pane.setMinHeight(Region.USE_PREF_SIZE);
     }
 }

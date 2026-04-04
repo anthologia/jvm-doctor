@@ -7,38 +7,70 @@
 <VBox xmlns="http://javafx.com/javafx/21"
       xmlns:fx="http://javafx.com/fxml/1"
       fx:controller="io.jvmdoctor.ui.ThreadTableController"
-      spacing="6">
+      spacing="8">
     <padding><Insets top="8" right="12" bottom="8" left="12"/></padding>
 
-    <!-- 텍스트 필터 + 문제만 버튼 -->
-    <HBox spacing="8" alignment="CENTER_LEFT">
-        <Label text="Filter:" styleClass="filter-label"/>
-        <TextField fx:id="filterField" promptText="thread name / state / lock…" HBox.hgrow="ALWAYS"/>
-        <ToggleButton fx:id="problemOnlyBtn" text="⚠ 문제만" styleClass="filter-chip, chip-problem"/>
+    <HBox spacing="8" alignment="CENTER_LEFT" styleClass="threads-toolbar">
+        <TextField fx:id="filterField" promptText="Search name, id, pool, frame, lock or signal" HBox.hgrow="ALWAYS"/>
+        <ToggleButton fx:id="problemOnlyBtn" text="Problem States" styleClass="filter-chip, chip-problem"/>
+        <Label fx:id="statsLabel" text="" styleClass="status-label threads-stats"/>
     </HBox>
 
-    <!-- State 칩 (동적 생성) -->
-    <HBox fx:id="stateFilterBox" spacing="6" alignment="CENTER_LEFT">
-        <Label text="State:" styleClass="filter-label"/>
+    <HBox spacing="8" alignment="CENTER_LEFT">
+        <Label text="States" styleClass="filter-label"/>
+        <FlowPane fx:id="stateFilterBox" hgap="6" vgap="6" HBox.hgrow="ALWAYS"/>
+    </HBox>
+
+    <HBox fx:id="scopeSummaryBox" spacing="8" alignment="CENTER_LEFT" styleClass="threads-scope-bar"
+          visible="false" managed="false">
+        <Label fx:id="scopeLabel" text="" styleClass="status-label thread-scope-label" HBox.hgrow="ALWAYS"/>
+        <Button fx:id="clearFiltersBtn" text="Reset" onAction="#onClearQuickFilters"
+                styleClass="toolbar-btn, toolbar-btn-subtle"/>
     </HBox>
 
     <SplitPane orientation="VERTICAL" dividerPositions="0.6" VBox.vgrow="ALWAYS">
 
         <TableView fx:id="threadTable" VBox.vgrow="ALWAYS">
             <columns>
-                <TableColumn fx:id="nameCol"  text="Thread Name"  prefWidth="320"/>
-                <TableColumn fx:id="stateCol" text="State"        prefWidth="130"/>
-                <TableColumn fx:id="lockCol"  text="Waiting On"   prefWidth="240"/>
-                <TableColumn fx:id="depthCol" text="Stack Depth"  prefWidth="90"
-                             style="-fx-alignment: CENTER_RIGHT;"/>
+                <TableColumn fx:id="nameCol"      text="Thread"       prefWidth="280"/>
+                <TableColumn fx:id="stateCol"     text="State"        prefWidth="110"/>
+                <TableColumn fx:id="issuesCol"    text="Signals"      prefWidth="180"/>
+                <TableColumn fx:id="contextCol"   text="Context"      prefWidth="250"/>
+                <TableColumn fx:id="topFrameCol"  text="Top Frame"    prefWidth="320"/>
             </columns>
             <placeholder>
                 <Label text="No threads loaded. Open a dump file to begin."/>
             </placeholder>
         </TableView>
 
-        <TextArea fx:id="stackDetail" editable="false" wrapText="false"
-                  promptText="Select a thread to view its stack trace"
-                  style="-fx-font-family: monospace; -fx-font-size: 12px;"/>
+        <VBox spacing="6" styleClass="thread-detail-pane">
+            <HBox alignment="CENTER_LEFT" spacing="10" styleClass="thread-selection-header">
+                <VBox spacing="2" HBox.hgrow="ALWAYS">
+                    <HBox spacing="8" alignment="CENTER_LEFT">
+                        <HBox fx:id="selectionIndicatorBox" spacing="8" alignment="CENTER_LEFT"
+                              visible="false" managed="false">
+                            <Label text="Selected" styleClass="thread-selection-chip"/>
+                            <Button fx:id="revealSelectedBtn" text="Reveal" onAction="#onRevealSelected"
+                                    styleClass="toolbar-btn, toolbar-btn-subtle, compact-action-btn"/>
+                        </HBox>
+                        <Label fx:id="selectedThreadTitle" text="Select a thread" styleClass="thread-selection-title"/>
+                    </HBox>
+                    <TextField fx:id="selectedThreadMeta"
+                               text="Use search, state chips, or summary metrics to narrow the list."
+                               editable="false" focusTraversable="false"
+                               styleClass="thread-readonly-field, thread-selection-meta-field"/>
+                </VBox>
+                <HBox fx:id="selectionActionBox" spacing="6" visible="false" managed="false">
+                    <Button fx:id="ownerBtn" text="Owner" onAction="#onGoOwner" styleClass="toolbar-btn, compact-action-btn"/>
+                    <Button fx:id="samePoolBtn" text="Pool" onAction="#onSamePool" styleClass="toolbar-btn, compact-action-btn"/>
+                    <Button fx:id="sameFrameBtn" text="Frame" onAction="#onSameFrame" styleClass="toolbar-btn, compact-action-btn"/>
+                    <Button fx:id="showRawBtn" text="Raw" onAction="#onShowRaw" styleClass="toolbar-btn, compact-action-btn"/>
+                </HBox>
+            </HBox>
+
+            <TextArea fx:id="stackDetail" editable="false" wrapText="false" VBox.vgrow="ALWAYS"
+                      promptText="Select a thread to view its stack trace"
+                      style="-fx-font-family: monospace; -fx-font-size: 12px;"/>
+        </VBox>
     </SplitPane>
 </VBox>

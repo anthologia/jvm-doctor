@@ -8,6 +8,7 @@ import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.collections.transformation.FilteredList;
+import javafx.collections.transformation.SortedList;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.*;
@@ -40,9 +41,13 @@ public class ThreadPoolController implements Initializable {
 
     private final ObservableList<ThreadPool> allPools = FXCollections.observableArrayList();
     private FilteredList<ThreadPool> filteredPools;
+    private SortedList<ThreadPool> sortedPools;
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
+        poolTable.setColumnResizePolicy(TableView.UNCONSTRAINED_RESIZE_POLICY);
+        poolTable.setTableMenuButtonVisible(true);
+
         poolNameCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().name()));
         kindCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().kind()));
         healthCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().health()));
@@ -52,6 +57,24 @@ public class ThreadPoolController implements Initializable {
         blockedCol.setCellValueFactory(c -> new SimpleLongProperty(c.getValue().blocked()));
         dominantCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().dominantState()));
         topFrameCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().dominantTopFrame()));
+        poolNameCol.setSortable(true);
+        kindCol.setSortable(true);
+        healthCol.setSortable(true);
+        totalCol.setSortable(true);
+        runnableCol.setSortable(true);
+        waitingCol.setSortable(true);
+        blockedCol.setSortable(true);
+        dominantCol.setSortable(true);
+        topFrameCol.setSortable(true);
+        poolNameCol.setResizable(true);
+        kindCol.setResizable(true);
+        healthCol.setResizable(true);
+        totalCol.setResizable(true);
+        runnableCol.setResizable(true);
+        waitingCol.setResizable(true);
+        blockedCol.setResizable(true);
+        dominantCol.setResizable(true);
+        topFrameCol.setResizable(true);
 
         healthCol.setCellFactory(col -> new TableCell<>() {
             @Override
@@ -111,7 +134,11 @@ public class ThreadPoolController implements Initializable {
         });
 
         filteredPools = new FilteredList<>(allPools, p -> true);
-        poolTable.setItems(filteredPools);
+        sortedPools = new SortedList<>(filteredPools);
+        sortedPools.comparatorProperty().bind(poolTable.comparatorProperty());
+        poolTable.setItems(sortedPools);
+        totalCol.setSortType(TableColumn.SortType.DESCENDING);
+        poolTable.getSortOrder().setAll(totalCol);
 
         filterField.textProperty().addListener((obs, old, text) -> applyFilter(text));
 
@@ -141,17 +168,22 @@ public class ThreadPoolController implements Initializable {
         allPools.setAll(pools);
         filterField.clear();
         threadDetailBox.setVisible(false);
-        long singles = pools.stream().filter(p -> p.total() == 1).count();
-        long unhealthy = pools.stream()
-                .filter(p -> !"Healthy".equals(p.health()))
-                .count();
-        statsLabel.setText(pools.size() + " groups  ·  " + singles + " singletons  ·  " + unhealthy + " flagged");
+        updateStatsLabel();
     }
 
     private void applyFilter(String text) {
         String lower = text == null ? "" : text.toLowerCase();
         filteredPools.setPredicate(p ->
                 lower.isEmpty() || p.name().toLowerCase().contains(lower));
+        updateStatsLabel();
+    }
+
+    private void updateStatsLabel() {
+        long singles = filteredPools.stream().filter(p -> p.total() == 1).count();
+        long unhealthy = filteredPools.stream()
+                .filter(p -> !"Healthy".equals(p.health()))
+                .count();
+        statsLabel.setText(filteredPools.size() + " groups  ·  " + singles + " singletons  ·  " + unhealthy + " flagged");
     }
 
     private String formatThread(ThreadInfo t) {

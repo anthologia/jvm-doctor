@@ -11,6 +11,7 @@ import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.collections.transformation.FilteredList;
+import javafx.collections.transformation.SortedList;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.*;
@@ -47,6 +48,7 @@ public class DumpDiffController implements Initializable {
 
     private final ObservableList<ThreadDelta> allDeltas = FXCollections.observableArrayList();
     private FilteredList<ThreadDelta> filtered;
+    private SortedList<ThreadDelta> sorted;
     private Map<String, ThreadSeries> seriesByThreadName = Map.of();
     private MultiDumpAnalysis analysis;
     private int snapshotCount;
@@ -56,6 +58,9 @@ public class DumpDiffController implements Initializable {
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
+        diffTable.setColumnResizePolicy(TableView.UNCONSTRAINED_RESIZE_POLICY);
+        diffTable.setTableMenuButtonVisible(true);
+
         changeCol.setCellValueFactory(c -> new SimpleStringProperty(changeLabel(c.getValue().change())));
         changeCol.setCellFactory(col -> new TableCell<>() {
             @Override
@@ -79,6 +84,21 @@ public class DumpDiffController implements Initializable {
         signalsCol.setCellValueFactory(c -> new SimpleStringProperty(seriesSignals(c.getValue())));
         beforeCol.setCellValueFactory(c -> new SimpleStringProperty(seenLabel(c.getValue())));
         afterCol.setCellValueFactory(c -> new SimpleStringProperty(flipLabel(c.getValue())));
+        changeCol.setComparator((left, right) -> Integer.compare(changePriority(left), changePriority(right)));
+        beforeCol.setComparator((left, right) -> Integer.compare(parseSeen(left), parseSeen(right)));
+        afterCol.setComparator((left, right) -> Integer.compare(parseIntLabel(left), parseIntLabel(right)));
+        changeCol.setResizable(true);
+        nameCol.setResizable(true);
+        transitionCol.setResizable(true);
+        signalsCol.setResizable(true);
+        beforeCol.setResizable(true);
+        afterCol.setResizable(true);
+        changeCol.setSortable(true);
+        nameCol.setSortable(true);
+        transitionCol.setSortable(true);
+        signalsCol.setSortable(true);
+        beforeCol.setSortable(true);
+        afterCol.setSortable(true);
 
         signalsCol.setCellFactory(col -> new TableCell<>() {
             @Override
@@ -118,7 +138,11 @@ public class DumpDiffController implements Initializable {
         });
 
         filtered = new FilteredList<>(allDeltas, delta -> true);
-        diffTable.setItems(filtered);
+        sorted = new SortedList<>(filtered);
+        sorted.comparatorProperty().bind(diffTable.comparatorProperty());
+        diffTable.setItems(sorted);
+        afterCol.setSortType(TableColumn.SortType.DESCENDING);
+        diffTable.getSortOrder().setAll(afterCol);
 
         showAdded.setSelected(true);
         showRemoved.setSelected(true);
@@ -382,5 +406,38 @@ public class DumpDiffController implements Initializable {
             return seriesSignals;
         }
         return seriesSignals + " · " + delta.signals();
+    }
+
+    private int parseSeen(String text) {
+        if (text == null || text.isBlank() || "—".equals(text)) {
+            return Integer.MIN_VALUE;
+        }
+        int slash = text.indexOf('/');
+        String numerator = slash >= 0 ? text.substring(0, slash) : text;
+        return parseIntLabel(numerator);
+    }
+
+    private int parseIntLabel(String text) {
+        if (text == null || text.isBlank() || "—".equals(text)) {
+            return Integer.MIN_VALUE;
+        }
+        try {
+            return Integer.parseInt(text.trim());
+        } catch (NumberFormatException ignored) {
+            return Integer.MIN_VALUE;
+        }
+    }
+
+    private int changePriority(String label) {
+        if (label == null || label.isBlank()) {
+            return 99;
+        }
+        return switch (label) {
+            case "+ ADDED" -> 0;
+            case "~ CHANGED" -> 1;
+            case "- REMOVED" -> 2;
+            case "= SAME" -> 3;
+            default -> 99;
+        };
     }
 }

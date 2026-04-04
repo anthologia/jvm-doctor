@@ -86,7 +86,8 @@ public class ThreadTableController implements Initializable {
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
-        threadTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        threadTable.setColumnResizePolicy(TableView.UNCONSTRAINED_RESIZE_POLICY);
+        threadTable.setTableMenuButtonVisible(true);
         threadTable.setFixedCellSize(42);
 
         nameCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().name()));
@@ -100,6 +101,11 @@ public class ThreadTableController implements Initializable {
         contextCol.setSortable(true);
         topFrameCol.setSortable(true);
         issuesCol.setSortable(true);
+        nameCol.setResizable(true);
+        stateCol.setResizable(true);
+        contextCol.setResizable(true);
+        topFrameCol.setResizable(true);
+        issuesCol.setResizable(true);
 
         stateCol.setComparator((a, b) -> {
             int pa = STATE_PRIORITY.getOrDefault(a, 99);

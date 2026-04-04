@@ -7,6 +7,7 @@ import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.collections.transformation.FilteredList;
+import javafx.collections.transformation.SortedList;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.*;
@@ -30,11 +31,15 @@ public class TopFramesController implements Initializable {
 
     private final ObservableList<FrameStat> allFrames = FXCollections.observableArrayList();
     private FilteredList<FrameStat> filteredFrames;
+    private SortedList<FrameStat> sortedFrames;
     private Consumer<String> onFrameClicked;  // null = clear filter
     private String selectedFrameKey = null;
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
+        framesTable.setColumnResizePolicy(TableView.UNCONSTRAINED_RESIZE_POLICY);
+        framesTable.setTableMenuButtonVisible(true);
+
         methodCol.setCellValueFactory(c ->
                 new SimpleStringProperty(c.getValue().simpleClassName() + "." + c.getValue().methodName()));
 
@@ -59,10 +64,15 @@ public class TopFramesController implements Initializable {
         });
 
         countCol.setCellValueFactory(c -> new SimpleLongProperty(c.getValue().threadCount()));
+        countCol.setSortable(true);
+        countCol.setResizable(true);
 
         pctCol.setCellValueFactory(c ->
                 new SimpleStringProperty(String.format("%.1f%%", c.getValue().percentage())));
         pctCol.setStyle("-fx-alignment: CENTER_RIGHT;");
+        pctCol.setComparator((left, right) -> Double.compare(parsePercent(left), parsePercent(right)));
+        pctCol.setSortable(true);
+        pctCol.setResizable(true);
 
         barCol.setCellValueFactory(c -> new SimpleObjectProperty<>(c.getValue().percentage()));
         barCol.setCellFactory(col -> new TableCell<>() {
@@ -76,9 +86,19 @@ public class TopFramesController implements Initializable {
                 else { bar.setProgress(val / 100.0); setGraphic(bar); }
             }
         });
+        barCol.setSortable(true);
+        barCol.setResizable(true);
+        methodCol.setSortable(true);
+        packageCol.setSortable(true);
+        methodCol.setResizable(true);
+        packageCol.setResizable(true);
 
         filteredFrames = new FilteredList<>(allFrames, f -> true);
-        framesTable.setItems(filteredFrames);
+        sortedFrames = new SortedList<>(filteredFrames);
+        sortedFrames.comparatorProperty().bind(framesTable.comparatorProperty());
+        framesTable.setItems(sortedFrames);
+        countCol.setSortType(TableColumn.SortType.DESCENDING);
+        framesTable.getSortOrder().setAll(countCol);
 
         filterField.textProperty().addListener((obs, old, text) -> applyFilter());
         hideJdkFramesCheck.selectedProperty().addListener((obs, old, selected) -> applyFilter());
@@ -127,6 +147,17 @@ public class TopFramesController implements Initializable {
             return textMatch && frameMatch;
         });
         statsLabel.setText(filteredFrames.size() + " / " + allFrames.size() + " unique frames");
+    }
+
+    private double parsePercent(String text) {
+        if (text == null || text.isBlank()) {
+            return Double.NEGATIVE_INFINITY;
+        }
+        try {
+            return Double.parseDouble(text.replace("%", ""));
+        } catch (NumberFormatException ignored) {
+            return Double.NEGATIVE_INFINITY;
+        }
     }
 
     private boolean isJdkFrame(String className) {

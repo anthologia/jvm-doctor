@@ -14,8 +14,18 @@
     <VBox spacing="6">
         <padding><Insets top="8" right="12" bottom="4" left="12"/></padding>
 
-        <!-- Summary row -->
-        <Label fx:id="summaryLabel" text="Load two dumps to compare."
+        <Label fx:id="sessionLabel" text="Pair Diff compares the fixed anchor against one later loaded dump."
+               styleClass="status-label"/>
+
+        <HBox spacing="8" alignment="CENTER_LEFT">
+            <Label text="Source" styleClass="filter-label"/>
+            <Label fx:id="anchorSnapshotLabel" text="Session anchor" styleClass="session-anchor-pill"/>
+            <Label text="Target" styleClass="filter-label"/>
+            <ComboBox fx:id="toSnapshotBox" prefWidth="210" promptText="Choose target snapshot"/>
+            <Button fx:id="latestTargetBtn" text="Latest" styleClass="toolbar-btn, toolbar-btn-subtle"/>
+        </HBox>
+
+        <Label fx:id="summaryLabel" text="Choose a later dump from the target picker or the session rail on the right."
                styleClass="card-title"/>
 
         <!-- Filter chips + text filter -->
@@ -31,13 +41,13 @@
             <columns>
                 <TableColumn fx:id="changeCol" text="Change" prefWidth="110" minWidth="90"/>
                 <TableColumn fx:id="nameCol"   text="Thread Name" prefWidth="300" minWidth="150"/>
-                <TableColumn fx:id="transitionCol" text="Transition" prefWidth="170" minWidth="120"/>
-                <TableColumn fx:id="signalsCol" text="Signals" prefWidth="150" minWidth="100"/>
-                <TableColumn fx:id="beforeCol" text="Before" prefWidth="130" minWidth="80"/>
-                <TableColumn fx:id="afterCol"  text="After"  prefWidth="130" minWidth="80"/>
+                <TableColumn fx:id="transitionCol" text="Boundary" prefWidth="170" minWidth="120"/>
+                <TableColumn fx:id="signalsCol" text="Signals" prefWidth="220" minWidth="160"/>
+                <TableColumn fx:id="beforeCol" text="Seen" prefWidth="90" minWidth="70"/>
+                <TableColumn fx:id="afterCol"  text="Flips"  prefWidth="90" minWidth="70"/>
             </columns>
             <placeholder>
-                <Label text="No diff yet. Use 'Compare Dumps' in the toolbar."/>
+                <Label text="No pair diff yet. Start a session, then pick a later dump to compare against the anchor."/>
             </placeholder>
         </TableView>
     </VBox>

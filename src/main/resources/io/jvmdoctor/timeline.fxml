@@ -12,15 +12,21 @@
 
     <!-- Toolbar row -->
     <HBox spacing="8" alignment="CENTER_LEFT">
-        <Button fx:id="addDumpsBtn" text="+ Add Dumps" onAction="#onAddDumps" styleClass="toolbar-btn"/>
-        <Button fx:id="clearBtn"    text="Clear"       onAction="#onClear"    styleClass="toolbar-btn"/>
+        <ToggleButton fx:id="suspiciousToggle" text="Suspicious" styleClass="filter-chip, chip-problem"/>
+        <ToggleButton fx:id="stuckToggle" text="Stuck" styleClass="filter-chip, chip-blocked"/>
+        <ToggleButton fx:id="flappingToggle" text="Flapping" styleClass="filter-chip, chip-runnable"/>
+        <ToggleButton fx:id="blockedToggle" text="Repeat Blocked" styleClass="filter-chip, chip-blocked"/>
+        <ToggleButton fx:id="persistentToggle" text="Persistent" styleClass="filter-chip"/>
         <Separator orientation="VERTICAL"/>
         <Label text="Filter threads:" styleClass="filter-label"/>
         <TextField fx:id="filterField" promptText="thread name…" HBox.hgrow="ALWAYS"/>
         <Label fx:id="statusLabel" text="Add dumps to begin." styleClass="status-label"/>
     </HBox>
 
-    <Label fx:id="summaryLabel" text="Load multiple dumps to surface stuck threads and state transitions."
+    <Label fx:id="sessionLabel" text="Start a session to track recurring threads across loaded dumps."
+           styleClass="status-label"/>
+
+    <Label fx:id="summaryLabel" text="The session rail on the right shows every loaded dump and helps you pivot into Pair Diff."
            styleClass="status-label"/>
 
     <!-- Legend -->

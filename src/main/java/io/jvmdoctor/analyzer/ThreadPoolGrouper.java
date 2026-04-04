@@ -48,6 +48,9 @@ public class ThreadPoolGrouper {
     }
 
     public String detectPoolName(String name) {
+        if (name == null || name.isBlank()) {
+            return "<unnamed-thread>";
+        }
         for (PoolPattern pp : PATTERNS) {
             Matcher m = pp.pattern().matcher(name);
             if (m.matches()) {

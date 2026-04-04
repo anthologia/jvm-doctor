@@ -4,6 +4,7 @@ import io.jvmdoctor.model.StackFrame;
 import io.jvmdoctor.model.ThreadInfo;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Result of comparing two thread dumps (baseline vs current).
@@ -87,15 +88,39 @@ public record DumpDiff(
                     .filter(f -> !isJdkFrame(f))
                     .findFirst()
                     .orElse(thread.stackFrames().get(0));
-            return frame.className() + "." + frame.methodName();
+            return frameLabel(frame);
         }
 
         private static boolean isJdkFrame(StackFrame frame) {
+            if (frame == null) {
+                return false;
+            }
             String className = frame.className();
+            if (className == null || className.isBlank()) {
+                return false;
+            }
             return className.startsWith("java.")
                     || className.startsWith("javax.")
                     || className.startsWith("jdk.")
                     || className.startsWith("sun.");
+        }
+
+        private static String frameLabel(StackFrame frame) {
+            if (frame == null) {
+                return "";
+            }
+            String className = Objects.toString(frame.className(), "");
+            String methodName = Objects.toString(frame.methodName(), "");
+            if (className.isBlank() && methodName.isBlank()) {
+                return "";
+            }
+            if (className.isBlank()) {
+                return methodName;
+            }
+            if (methodName.isBlank()) {
+                return className;
+            }
+            return className + "." + methodName;
         }
     }
 

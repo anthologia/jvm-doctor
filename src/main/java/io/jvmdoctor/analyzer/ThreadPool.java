@@ -5,6 +5,7 @@ import io.jvmdoctor.model.StackFrame;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 public record ThreadPool(String name, List<ThreadInfo> threads) {
@@ -13,7 +14,9 @@ public record ThreadPool(String name, List<ThreadInfo> threads) {
 
     public Map<String, Long> stateCounts() {
         return threads.stream()
-                .collect(Collectors.groupingBy(t -> t.state().toUpperCase(), Collectors.counting()));
+                .collect(Collectors.groupingBy(
+                        t -> normalizeState(t.state()),
+                        Collectors.counting()));
     }
 
     public long blocked() {
@@ -30,14 +33,15 @@ public record ThreadPool(String name, List<ThreadInfo> threads) {
     }
 
     public String kind() {
-        if (name.startsWith("ForkJoinPool")) return "ForkJoin";
-        if (name.startsWith("http-") || name.startsWith("https-") || name.startsWith("ajp-")) return "HTTP";
-        if (name.startsWith("qtp")) return "Jetty";
-        if (name.startsWith("nioEventLoopGroup")) return "Netty";
-        if (name.contains("OkHttp")) return "OkHttp";
-        if (name.contains("Hikari")) return "Hikari";
-        if (name.contains("grpc")) return "gRPC";
-        if (name.contains("Executor") || name.startsWith("pool-")) return "Executor";
+        String safeName = Objects.toString(name, "");
+        if (safeName.startsWith("ForkJoinPool")) return "ForkJoin";
+        if (safeName.startsWith("http-") || safeName.startsWith("https-") || safeName.startsWith("ajp-")) return "HTTP";
+        if (safeName.startsWith("qtp")) return "Jetty";
+        if (safeName.startsWith("nioEventLoopGroup")) return "Netty";
+        if (safeName.contains("OkHttp")) return "OkHttp";
+        if (safeName.contains("Hikari")) return "Hikari";
+        if (safeName.contains("grpc")) return "gRPC";
+        if (safeName.contains("Executor") || safeName.startsWith("pool-")) return "Executor";
         return total() == 1 ? "Single" : "Generic";
     }
 
@@ -76,14 +80,45 @@ public record ThreadPool(String name, List<ThreadInfo> threads) {
                 .filter(f -> !isJdkFrame(f))
                 .findFirst()
                 .orElse(thread.stackFrames().get(0));
-        return frame.className() + "." + frame.methodName();
+        return frameLabel(frame);
     }
 
     private boolean isJdkFrame(StackFrame frame) {
+        if (frame == null) {
+            return false;
+        }
         String className = frame.className();
+        if (className == null || className.isBlank()) {
+            return false;
+        }
         return className.startsWith("java.")
                 || className.startsWith("javax.")
                 || className.startsWith("jdk.")
                 || className.startsWith("sun.");
+    }
+
+    private String normalizeState(String state) {
+        if (state == null || state.isBlank()) {
+            return "UNKNOWN";
+        }
+        return state.toUpperCase();
+    }
+
+    private String frameLabel(StackFrame frame) {
+        if (frame == null) {
+            return "";
+        }
+        String className = Objects.toString(frame.className(), "");
+        String methodName = Objects.toString(frame.methodName(), "");
+        if (className.isBlank() && methodName.isBlank()) {
+            return "";
+        }
+        if (className.isBlank()) {
+            return methodName;
+        }
+        if (methodName.isBlank()) {
+            return className;
+        }
+        return className + "." + methodName;
     }
 }

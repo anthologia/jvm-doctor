@@ -25,13 +25,13 @@ public class DumpDiffer {
             ThreadInfo a = after.get(name);
             if (a == null) {
                 deltas.add(new DumpDiff.ThreadDelta(name, DumpDiff.ChangeType.REMOVED,
-                        b.state(), null, b, null));
-            } else if (!b.state().equalsIgnoreCase(a.state())) {
+                        normalizedState(b), null, b, null));
+            } else if (!normalizedState(b).equalsIgnoreCase(normalizedState(a))) {
                 deltas.add(new DumpDiff.ThreadDelta(name, DumpDiff.ChangeType.STATE_CHANGED,
-                        b.state(), a.state(), b, a));
+                        normalizedState(b), normalizedState(a), b, a));
             } else {
                 deltas.add(new DumpDiff.ThreadDelta(name, DumpDiff.ChangeType.UNCHANGED,
-                        b.state(), a.state(), b, a));
+                        normalizedState(b), normalizedState(a), b, a));
             }
         }
 
@@ -39,7 +39,7 @@ public class DumpDiffer {
         for (Map.Entry<String, ThreadInfo> e : after.entrySet()) {
             if (!before.containsKey(e.getKey())) {
                 deltas.add(new DumpDiff.ThreadDelta(e.getKey(), DumpDiff.ChangeType.ADDED,
-                        null, e.getValue().state(), null, e.getValue()));
+                        null, normalizedState(e.getValue()), null, e.getValue()));
             }
         }
 
@@ -53,7 +53,11 @@ public class DumpDiffer {
 
     private Map<String, ThreadInfo> index(ThreadDump dump) {
         return dump.threads().stream()
-                .collect(Collectors.toMap(ThreadInfo::name, t -> t, (a, b) -> a, LinkedHashMap::new));
+                .collect(Collectors.toMap(
+                        t -> t.name() == null || t.name().isBlank() ? "<unnamed-thread>" : t.name(),
+                        t -> t,
+                        (a, b) -> a,
+                        LinkedHashMap::new));
     }
 
     private int changeOrder(DumpDiff.ChangeType c) {
@@ -63,5 +67,12 @@ public class DumpDiffer {
             case STATE_CHANGED -> 2;
             case UNCHANGED     -> 3;
         };
+    }
+
+    private String normalizedState(ThreadInfo thread) {
+        if (thread == null || thread.state() == null || thread.state().isBlank()) {
+            return "UNKNOWN";
+        }
+        return thread.state();
     }
 }

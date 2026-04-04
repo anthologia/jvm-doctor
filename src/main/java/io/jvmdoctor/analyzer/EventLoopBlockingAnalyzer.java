@@ -5,6 +5,7 @@ import io.jvmdoctor.model.ThreadDump;
 import io.jvmdoctor.model.ThreadInfo;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.regex.Pattern;
 
 public class EventLoopBlockingAnalyzer implements Analyzer {
@@ -57,7 +58,11 @@ public class EventLoopBlockingAnalyzer implements Analyzer {
     }
 
     private boolean isInfraThread(ThreadInfo thread) {
-        return INFRA_THREAD_PATTERNS.stream().anyMatch(p -> p.matcher(thread.name()).matches());
+        String name = thread == null ? null : thread.name();
+        if (name == null || name.isBlank()) {
+            return false;
+        }
+        return INFRA_THREAD_PATTERNS.stream().anyMatch(p -> p.matcher(name).matches());
     }
 
     private String firstAppFrame(ThreadInfo thread) {
@@ -67,15 +72,39 @@ public class EventLoopBlockingAnalyzer implements Analyzer {
         return thread.stackFrames().stream()
                 .filter(frame -> !isJdkFrame(frame))
                 .findFirst()
-                .map(frame -> frame.className() + "." + frame.methodName())
+                .map(this::frameLabel)
                 .orElse("");
     }
 
     private boolean isJdkFrame(StackFrame frame) {
+        if (frame == null) {
+            return false;
+        }
         String className = frame.className();
+        if (className == null || className.isBlank()) {
+            return false;
+        }
         return className.startsWith("java.")
                 || className.startsWith("javax.")
                 || className.startsWith("jdk.")
                 || className.startsWith("sun.");
+    }
+
+    private String frameLabel(StackFrame frame) {
+        if (frame == null) {
+            return "";
+        }
+        String className = Objects.toString(frame.className(), "");
+        String methodName = Objects.toString(frame.methodName(), "");
+        if (className.isBlank() && methodName.isBlank()) {
+            return "";
+        }
+        if (className.isBlank()) {
+            return methodName;
+        }
+        if (methodName.isBlank()) {
+            return className;
+        }
+        return className + "." + methodName;
     }
 }

@@ -1,85 +1,77 @@
 package io.jvmdoctor.ui;
 
-import io.jvmdoctor.analyzer.TimelineSnapshot;
-import io.jvmdoctor.model.ThreadDump;
-import io.jvmdoctor.parser.JstackParser;
+import io.jvmdoctor.analyzer.MultiDumpAnalysis;
+import io.jvmdoctor.analyzer.MultiDumpAnalysis.ThreadSeries;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
+import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.Node;
-import javafx.scene.control.*;
-import javafx.scene.layout.*;
+import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
+import javafx.scene.control.TextField;
+import javafx.scene.control.ToggleButton;
+import javafx.scene.control.Tooltip;
+import javafx.scene.layout.ColumnConstraints;
+import javafx.scene.layout.GridPane;
+import javafx.scene.layout.RowConstraints;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Font;
-import javafx.stage.FileChooser;
 
-import java.io.File;
 import java.net.URL;
-import java.nio.file.Files;
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.Comparator;
+import java.util.ResourceBundle;
 
 public class TimelineController implements Initializable {
 
-    @FXML private Button addDumpsBtn;
-    @FXML private Button clearBtn;
     @FXML private Label statusLabel;
+    @FXML private Label sessionLabel;
     @FXML private Label summaryLabel;
+    @FXML private ToggleButton suspiciousToggle;
+    @FXML private ToggleButton stuckToggle;
+    @FXML private ToggleButton flappingToggle;
+    @FXML private ToggleButton blockedToggle;
+    @FXML private ToggleButton persistentToggle;
     @FXML private TextField filterField;
     @FXML private ScrollPane heatmapScroll;
     @FXML private GridPane heatmapGrid;
 
-    private final List<TimelineSnapshot> snapshots = new ArrayList<>();
-    private final JstackParser parser = new JstackParser();
-
     private static final int CELL_W = 28;
     private static final int CELL_H = 18;
 
+    private MultiDumpAnalysis analysis;
+
     @Override
     public void initialize(URL location, ResourceBundle resources) {
-        filterField.textProperty().addListener((obs, o, n) -> rebuildHeatmap());
+        filterField.textProperty().addListener((obs, oldValue, newValue) -> rebuildHeatmap());
+        suspiciousToggle.setOnAction(e -> rebuildHeatmap());
+        stuckToggle.setOnAction(e -> rebuildHeatmap());
+        flappingToggle.setOnAction(e -> rebuildHeatmap());
+        blockedToggle.setOnAction(e -> rebuildHeatmap());
+        persistentToggle.setOnAction(e -> rebuildHeatmap());
         heatmapScroll.setFitToWidth(false);
         heatmapScroll.setFitToHeight(false);
+        clear();
     }
 
-    @FXML
-    private void onAddDumps() {
-        FileChooser chooser = new FileChooser();
-        chooser.setTitle("Add Dumps to Timeline (select multiple)");
-        chooser.getExtensionFilters().addAll(
-                new FileChooser.ExtensionFilter("Text Files", "*.txt", "*.log", "*.dump"),
-                new FileChooser.ExtensionFilter("All Files", "*.*")
-        );
-        List<File> files = chooser.showOpenMultipleDialog(addDumpsBtn.getScene().getWindow());
-        if (files == null || files.isEmpty()) return;
-
-        int loaded = 0;
-        for (File f : files) {
-            try {
-                String text = Files.readString(f.toPath());
-                ThreadDump dump = parser.parse(text);
-                snapshots.add(new TimelineSnapshot(f.getName(), dump));
-                loaded++;
-            } catch (Exception e) {
-                showAlert("Failed to load: " + f.getName() + "\n" + e.getMessage());
-            }
-        }
-        if (loaded > 0) {
-            snapshots.sort(Comparator.comparing(TimelineSnapshot::label));
-            rebuildHeatmap();
-            statusLabel.setText(snapshots.size() + " snapshot(s) loaded.");
-        }
+    public void setAnalysis(MultiDumpAnalysis analysis) {
+        this.analysis = analysis;
+        sessionLabel.setText(String.format(
+                "Tracking a %d-snapshot session  ·  %s through %s",
+                analysis.snapshotCount(),
+                analysis.baselineLabel(),
+                analysis.latestLabel()));
+        rebuildHeatmap();
     }
 
-    @FXML
-    private void onClear() {
-        snapshots.clear();
+    public void clear() {
+        analysis = null;
         heatmapGrid.getChildren().clear();
         heatmapGrid.getColumnConstraints().clear();
         heatmapGrid.getRowConstraints().clear();
-        statusLabel.setText("Cleared.");
-        summaryLabel.setText("Load multiple dumps to surface stuck threads and state transitions.");
+        sessionLabel.setText("Start a session to track recurring threads across loaded dumps.");
+        statusLabel.setText("No session loaded.");
+        summaryLabel.setText("The session rail on the right shows every loaded dump and lets you pivot into Pair Diff.");
     }
 
     private void rebuildHeatmap() {
@@ -87,173 +79,201 @@ public class TimelineController implements Initializable {
         heatmapGrid.getColumnConstraints().clear();
         heatmapGrid.getRowConstraints().clear();
 
-        if (snapshots.isEmpty()) return;
-
-        // Collect all thread names (union across all snapshots)
-        String filter = filterField.getText() == null ? "" : filterField.getText().toLowerCase();
-        List<String> threads = snapshots.stream()
-                .flatMap(s -> s.dump().threads().stream().map(t -> t.name()))
-                .distinct()
-                .filter(n -> filter.isEmpty() || n.toLowerCase().contains(filter))
-                .sorted(Comparator
-                        .comparing((String name) -> !isStuckCandidate(name))
-                        .thenComparing((String name) -> -blockedOccurrences(name))
-                        .thenComparing(String::compareTo))
-                .collect(Collectors.toList());
-
-        if (threads.isEmpty()) {
-            statusLabel.setText("No threads match the filter.");
+        if (analysis == null || analysis.snapshotCount() == 0) {
             return;
         }
 
-        // Column 0: thread name label
-        heatmapGrid.getColumnConstraints().add(colConstraint(200, 200, 400));
-        // Columns 1..N: one per snapshot
-        for (int s = 0; s < snapshots.size(); s++) {
+        var visibleSeries = analysis.threadSeries().stream()
+                .filter(this::matchesFilter)
+                .sorted(Comparator
+                        .comparingInt(ThreadSeries::suspicionScore).reversed()
+                        .thenComparingInt(ThreadSeries::blockedSnapshots).reversed()
+                        .thenComparingInt(ThreadSeries::appearances).reversed()
+                        .thenComparing(ThreadSeries::threadName))
+                .toList();
+
+        if (visibleSeries.isEmpty()) {
+            statusLabel.setText("No threads match the current timeline filters.");
+            summaryLabel.setText("Relax the scope chips or search to see more threads.");
+            return;
+        }
+
+        heatmapGrid.getColumnConstraints().add(colConstraint(56, 56, 56));
+        heatmapGrid.getColumnConstraints().add(colConstraint(180, 180, 260));
+        heatmapGrid.getColumnConstraints().add(colConstraint(250, 300, 420));
+        for (int index = 0; index < analysis.snapshotCount(); index++) {
             heatmapGrid.getColumnConstraints().add(colConstraint(CELL_W, CELL_W, CELL_W));
         }
 
-        // Header row (row 0): snapshot labels
-        heatmapGrid.getRowConstraints().add(rowConstraint(20));
-        Label corner = new Label("");
-        heatmapGrid.add(corner, 0, 0);
-        for (int s = 0; s < snapshots.size(); s++) {
-            String lbl = shortLabel(snapshots.get(s).label(), s);
-            Label header = new Label(lbl);
-            header.setFont(Font.font("Monospace", 9));
-            header.setTextFill(Color.web("#a6adc8"));
-            header.setRotate(-60);
-            header.setAlignment(Pos.CENTER);
-            header.setPrefWidth(CELL_W);
-            Tooltip.install(header, new Tooltip(snapshots.get(s).label()));
-            heatmapGrid.add(header, s + 1, 0);
+        heatmapGrid.getRowConstraints().add(rowConstraint(22));
+        heatmapGrid.add(headerLabel("Seen"), 0, 0);
+        heatmapGrid.add(headerLabel("Signals"), 1, 0);
+        heatmapGrid.add(headerLabel("Thread"), 2, 0);
+        for (int index = 0; index < analysis.snapshotCount(); index++) {
+            Label header = headerLabel("#" + (index + 1));
+            Tooltip.install(header, new Tooltip(analysis.snapshots().get(index).label()));
+            heatmapGrid.add(header, index + 3, 0);
         }
 
-        // Data rows
-        for (int row = 0; row < threads.size(); row++) {
-            String threadName = threads.get(row);
-            heatmapGrid.getRowConstraints().add(rowConstraint(CELL_H));
+        for (int row = 0; row < visibleSeries.size(); row++) {
+            ThreadSeries series = visibleSeries.get(row);
+            heatmapGrid.getRowConstraints().add(rowConstraint(CELL_H + 6));
 
-            Label nameLabel = new Label(threadName);
-            nameLabel.setFont(Font.font("Monospace", 11));
-            nameLabel.setTextFill(isStuckCandidate(threadName) ? Color.web("#c73a4f") : Color.web("#cdd6f4"));
-            nameLabel.setMaxWidth(Double.MAX_VALUE);
-            nameLabel.setPadding(new javafx.geometry.Insets(0, 4, 0, 4));
-            String threadLabel = isStuckCandidate(threadName) ? "[STUCK] " + threadName : threadName;
-            nameLabel.setText(threadLabel);
-            Tooltip.install(nameLabel, new Tooltip(threadName
-                    + "\nBlocked snapshots: " + blockedOccurrences(threadName)
-                    + "\nPersistent top frame: " + mostCommonTopFrame(threadName)));
-            heatmapGrid.add(nameLabel, 0, row + 1);
+            Label seenLabel = metaLabel(series.seenLabel(analysis.snapshotCount()), "timeline-seen-label");
+            Tooltip.install(seenLabel, new Tooltip(series.appearances() + " observed snapshot(s)"));
+            heatmapGrid.add(seenLabel, 0, row + 1);
 
-            for (int col = 0; col < snapshots.size(); col++) {
-                Map<String, String> states = snapshots.get(col).states();
-                Map<String, String> topFrames = snapshots.get(col).topFrames();
-                String state = states.getOrDefault(threadName, null);
+            Label signalsLabel = metaLabel(signalText(series), "timeline-signal-label");
+            signalsLabel.getStyleClass().add(signalStyleClass(series));
+            Tooltip.install(signalsLabel, new Tooltip(signalTooltip(series)));
+            heatmapGrid.add(signalsLabel, 1, row + 1);
+
+            Label nameLabel = metaLabel(series.threadName(), "timeline-thread-label");
+            if (series.suspicious()) {
+                nameLabel.getStyleClass().add("timeline-thread-suspicious");
+            }
+            nameLabel.setTooltip(new Tooltip(threadTooltip(series)));
+            heatmapGrid.add(nameLabel, 2, row + 1);
+
+            for (int col = 0; col < analysis.snapshotCount(); col++) {
+                String state = series.stateAt(col);
                 Rectangle cell = makeCell(state);
-                if (state != null) {
-                    Tooltip.install(cell, new Tooltip(state + "\n" + topFrames.getOrDefault(threadName, "")));
-                }
-                heatmapGrid.add(cell, col + 1, row + 1);
+                String topFrame = series.topFrameAt(col);
+                String tooltip = analysis.snapshots().get(col).label()
+                        + "\nState: " + (state == null ? "absent" : state)
+                        + "\nTop frame: " + (topFrame == null || topFrame.isBlank() ? "—" : topFrame);
+                Tooltip.install(cell, new Tooltip(tooltip));
+                heatmapGrid.add(cell, col + 3, row + 1);
             }
         }
 
-        statusLabel.setText(snapshots.size() + " snapshot(s)  ·  " + threads.size() + " threads shown.");
-        summaryLabel.setText(buildSummary(threads));
+        statusLabel.setText(String.format(
+                "%d snapshot(s)  ·  %d thread(s) shown  ·  %d suspicious",
+                analysis.snapshotCount(),
+                visibleSeries.size(),
+                visibleSeries.stream().filter(ThreadSeries::suspicious).count()));
+        summaryLabel.setText(buildSummary(visibleSeries));
+    }
+
+    private boolean matchesFilter(ThreadSeries series) {
+        String text = filterField.getText() == null ? "" : filterField.getText().toLowerCase();
+        boolean textOk = text.isEmpty()
+                || series.threadName().toLowerCase().contains(text)
+                || series.signalLabel().toLowerCase().contains(text)
+                || series.displayTopFrame().toLowerCase().contains(text)
+                || series.dominantState().toLowerCase().contains(text);
+        if (!textOk) {
+            return false;
+        }
+        if (suspiciousToggle.isSelected() && !series.suspicious()) {
+            return false;
+        }
+        if (stuckToggle.isSelected() && !series.stuckCandidate()) {
+            return false;
+        }
+        if (flappingToggle.isSelected() && !series.flapping()) {
+            return false;
+        }
+        if (blockedToggle.isSelected() && !series.repeatedlyBlocked()) {
+            return false;
+        }
+        return !persistentToggle.isSelected() || series.presentInAllSnapshots();
+    }
+
+    private Label headerLabel(String text) {
+        Label label = new Label(text);
+        label.getStyleClass().add("timeline-header-label");
+        return label;
+    }
+
+    private Label metaLabel(String text, String styleClass) {
+        Label label = new Label(text);
+        label.getStyleClass().add(styleClass);
+        label.setFont(Font.font("Monospace", 11));
+        label.setPadding(new Insets(0, 4, 0, 4));
+        label.setAlignment(Pos.CENTER_LEFT);
+        label.setMaxWidth(Double.MAX_VALUE);
+        return label;
     }
 
     private Rectangle makeCell(String state) {
-        Rectangle r = new Rectangle(CELL_W - 2, CELL_H - 2);
-        if (state == null) {
-            r.setFill(Color.web("#313244")); // absent
-        } else {
-            r.setFill(stateColor(state));
-        }
-        r.setArcWidth(2);
-        r.setArcHeight(2);
-        return r;
+        Rectangle rectangle = new Rectangle(CELL_W - 2, CELL_H - 2);
+        rectangle.setFill(state == null ? Color.web("#313244") : stateColor(state));
+        rectangle.setArcWidth(3);
+        rectangle.setArcHeight(3);
+        return rectangle;
     }
 
     private Color stateColor(String state) {
         return switch (state.toUpperCase()) {
-            case "RUNNABLE"     -> Color.web("#3677e0");
-            case "BLOCKED"      -> Color.web("#c73a4f");
-            case "WAITING"      -> Color.web("#b99132");
-            case "TIMED_WAITING"-> Color.web("#8c6a45");
-            case "NEW"          -> Color.web("#628c7b");
-            case "TERMINATED"   -> Color.web("#585b70");
-            default             -> Color.web("#cba6f7");
+            case "RUNNABLE" -> Color.web("#3677e0");
+            case "BLOCKED" -> Color.web("#c73a4f");
+            case "WAITING" -> Color.web("#b99132");
+            case "TIMED_WAITING" -> Color.web("#8c6a45");
+            case "NEW" -> Color.web("#628c7b");
+            case "TERMINATED" -> Color.web("#585b70");
+            default -> Color.web("#7c8898");
         };
     }
 
     private ColumnConstraints colConstraint(double min, double pref, double max) {
-        ColumnConstraints cc = new ColumnConstraints();
-        cc.setMinWidth(min); cc.setPrefWidth(pref); cc.setMaxWidth(max);
-        return cc;
+        ColumnConstraints constraints = new ColumnConstraints();
+        constraints.setMinWidth(min);
+        constraints.setPrefWidth(pref);
+        constraints.setMaxWidth(max);
+        return constraints;
     }
 
     private RowConstraints rowConstraint(double height) {
-        RowConstraints rc = new RowConstraints();
-        rc.setMinHeight(height); rc.setPrefHeight(height); rc.setMaxHeight(height);
-        return rc;
+        RowConstraints constraints = new RowConstraints();
+        constraints.setMinHeight(height);
+        constraints.setPrefHeight(height);
+        constraints.setMaxHeight(height);
+        return constraints;
     }
 
-    private String shortLabel(String label, int idx) {
-        // Use index number if label is too long
-        return "#" + (idx + 1);
+    private String signalText(ThreadSeries series) {
+        if (!series.signalLabel().isBlank()) {
+            return series.signalLabel();
+        }
+        return series.presentInAllSnapshots() ? "PERSISTENT" : "OBSERVED";
     }
 
-    private void showAlert(String msg) {
-        Alert a = new Alert(Alert.AlertType.WARNING, msg, ButtonType.OK);
-        a.setTitle("Load Warning");
-        a.showAndWait();
+    private String signalStyleClass(ThreadSeries series) {
+        if (series.stuckCandidate() || series.repeatedlyBlocked()) {
+            return "timeline-signal-critical";
+        }
+        if (series.flapping() || series.newlyBlocked()) {
+            return "timeline-signal-warning";
+        }
+        if (series.presentInAllSnapshots()) {
+            return "timeline-signal-persistent";
+        }
+        return "timeline-signal-muted";
     }
 
-    private boolean isStuckCandidate(String threadName) {
-        Set<String> topFrames = snapshots.stream()
-                .map(TimelineSnapshot::topFrames)
-                .map(map -> map.getOrDefault(threadName, ""))
-                .filter(frame -> !frame.isBlank())
-                .collect(Collectors.toCollection(LinkedHashSet::new));
-        Set<String> states = snapshots.stream()
-                .map(TimelineSnapshot::states)
-                .map(map -> map.getOrDefault(threadName, ""))
-                .filter(state -> !state.isBlank())
-                .collect(Collectors.toCollection(LinkedHashSet::new));
-        long appearances = snapshots.stream()
-                .map(TimelineSnapshot::states)
-                .filter(map -> map.containsKey(threadName))
-                .count();
-        return appearances >= 2
-                && topFrames.size() == 1
-                && states.size() == 1
-                && states.stream().findFirst().map(state ->
-                state.equals("BLOCKED") || state.equals("WAITING") || state.equals("TIMED_WAITING")).orElse(false);
+    private String signalTooltip(ThreadSeries series) {
+        return "Signals: " + signalText(series)
+                + "\nTransitions: " + series.transitions()
+                + "\nBlocked snapshots: " + series.blockedSnapshots();
     }
 
-    private long blockedOccurrences(String threadName) {
-        return snapshots.stream()
-                .map(TimelineSnapshot::states)
-                .map(map -> map.getOrDefault(threadName, ""))
-                .filter(state -> state.equals("BLOCKED"))
-                .count();
+    private String threadTooltip(ThreadSeries series) {
+        return "Dominant state: " + series.dominantState()
+                + "\nSeen: " + series.seenLabel(analysis.snapshotCount())
+                + "\nTop frame: " + series.displayTopFrame();
     }
 
-    private String mostCommonTopFrame(String threadName) {
-        return snapshots.stream()
-                .map(TimelineSnapshot::topFrames)
-                .map(map -> map.getOrDefault(threadName, ""))
-                .filter(frame -> !frame.isBlank())
-                .collect(Collectors.groupingBy(frame -> frame, Collectors.counting()))
-                .entrySet().stream()
-                .max(Map.Entry.comparingByValue())
-                .map(Map.Entry::getKey)
-                .orElse("—");
-    }
-
-    private String buildSummary(List<String> visibleThreads) {
-        long stuck = visibleThreads.stream().filter(this::isStuckCandidate).count();
-        long blockedHeavy = visibleThreads.stream().filter(name -> blockedOccurrences(name) >= 2).count();
-        return stuck + " stuck candidate(s)  ·  " + blockedHeavy + " repeatedly blocked thread(s)";
+    private String buildSummary(java.util.List<ThreadSeries> visibleSeries) {
+        long stuck = visibleSeries.stream().filter(ThreadSeries::stuckCandidate).count();
+        long flapping = visibleSeries.stream().filter(ThreadSeries::flapping).count();
+        long repeatBlocked = visibleSeries.stream().filter(ThreadSeries::repeatedlyBlocked).count();
+        long persistent = visibleSeries.stream().filter(ThreadSeries::presentInAllSnapshots).count();
+        return String.format(
+                "%d stuck  ·  %d flapping  ·  %d repeat blocked  ·  %d persistent",
+                stuck,
+                flapping,
+                repeatBlocked,
+                persistent);
     }
 }

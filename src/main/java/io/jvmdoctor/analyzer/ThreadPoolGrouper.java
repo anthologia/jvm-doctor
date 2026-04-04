@@ -37,7 +37,7 @@ public class ThreadPoolGrouper {
         Map<String, List<ThreadInfo>> buckets = new LinkedHashMap<>();
 
         for (ThreadInfo t : dump.threads()) {
-            String pool = detectPool(t.name());
+            String pool = detectPoolName(t.name());
             buckets.computeIfAbsent(pool, k -> new ArrayList<>()).add(t);
         }
 
@@ -47,7 +47,7 @@ public class ThreadPoolGrouper {
                 .collect(Collectors.toList());
     }
 
-    private String detectPool(String name) {
+    public String detectPoolName(String name) {
         for (PoolPattern pp : PATTERNS) {
             Matcher m = pp.pattern().matcher(name);
             if (m.matches()) {

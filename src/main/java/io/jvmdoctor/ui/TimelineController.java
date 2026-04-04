@@ -25,6 +25,7 @@ public class TimelineController implements Initializable {
     @FXML private Button addDumpsBtn;
     @FXML private Button clearBtn;
     @FXML private Label statusLabel;
+    @FXML private Label summaryLabel;
     @FXML private TextField filterField;
     @FXML private ScrollPane heatmapScroll;
     @FXML private GridPane heatmapGrid;
@@ -78,6 +79,7 @@ public class TimelineController implements Initializable {
         heatmapGrid.getColumnConstraints().clear();
         heatmapGrid.getRowConstraints().clear();
         statusLabel.setText("Cleared.");
+        summaryLabel.setText("Load multiple dumps to surface stuck threads and state transitions.");
     }
 
     private void rebuildHeatmap() {
@@ -93,7 +95,10 @@ public class TimelineController implements Initializable {
                 .flatMap(s -> s.dump().threads().stream().map(t -> t.name()))
                 .distinct()
                 .filter(n -> filter.isEmpty() || n.toLowerCase().contains(filter))
-                .sorted()
+                .sorted(Comparator
+                        .comparing((String name) -> !isStuckCandidate(name))
+                        .thenComparing((String name) -> -blockedOccurrences(name))
+                        .thenComparing(String::compareTo))
                 .collect(Collectors.toList());
 
         if (threads.isEmpty()) {
@@ -131,22 +136,30 @@ public class TimelineController implements Initializable {
 
             Label nameLabel = new Label(threadName);
             nameLabel.setFont(Font.font("Monospace", 11));
-            nameLabel.setTextFill(Color.web("#cdd6f4"));
+            nameLabel.setTextFill(isStuckCandidate(threadName) ? Color.web("#c73a4f") : Color.web("#cdd6f4"));
             nameLabel.setMaxWidth(Double.MAX_VALUE);
             nameLabel.setPadding(new javafx.geometry.Insets(0, 4, 0, 4));
-            Tooltip.install(nameLabel, new Tooltip(threadName));
+            String threadLabel = isStuckCandidate(threadName) ? "[STUCK] " + threadName : threadName;
+            nameLabel.setText(threadLabel);
+            Tooltip.install(nameLabel, new Tooltip(threadName
+                    + "\nBlocked snapshots: " + blockedOccurrences(threadName)
+                    + "\nPersistent top frame: " + mostCommonTopFrame(threadName)));
             heatmapGrid.add(nameLabel, 0, row + 1);
 
             for (int col = 0; col < snapshots.size(); col++) {
                 Map<String, String> states = snapshots.get(col).states();
+                Map<String, String> topFrames = snapshots.get(col).topFrames();
                 String state = states.getOrDefault(threadName, null);
                 Rectangle cell = makeCell(state);
-                if (state != null) Tooltip.install(cell, new Tooltip(state));
+                if (state != null) {
+                    Tooltip.install(cell, new Tooltip(state + "\n" + topFrames.getOrDefault(threadName, "")));
+                }
                 heatmapGrid.add(cell, col + 1, row + 1);
             }
         }
 
         statusLabel.setText(snapshots.size() + " snapshot(s)  ·  " + threads.size() + " threads shown.");
+        summaryLabel.setText(buildSummary(threads));
     }
 
     private Rectangle makeCell(String state) {
@@ -163,11 +176,11 @@ public class TimelineController implements Initializable {
 
     private Color stateColor(String state) {
         return switch (state.toUpperCase()) {
-            case "RUNNABLE"     -> Color.web("#a6e3a1");
-            case "BLOCKED"      -> Color.web("#f38ba8");
-            case "WAITING"      -> Color.web("#fab387");
-            case "TIMED_WAITING"-> Color.web("#f9e2af");
-            case "NEW"          -> Color.web("#89b4fa");
+            case "RUNNABLE"     -> Color.web("#3677e0");
+            case "BLOCKED"      -> Color.web("#c73a4f");
+            case "WAITING"      -> Color.web("#b99132");
+            case "TIMED_WAITING"-> Color.web("#8c6a45");
+            case "NEW"          -> Color.web("#628c7b");
             case "TERMINATED"   -> Color.web("#585b70");
             default             -> Color.web("#cba6f7");
         };
@@ -194,5 +207,53 @@ public class TimelineController implements Initializable {
         Alert a = new Alert(Alert.AlertType.WARNING, msg, ButtonType.OK);
         a.setTitle("Load Warning");
         a.showAndWait();
+    }
+
+    private boolean isStuckCandidate(String threadName) {
+        Set<String> topFrames = snapshots.stream()
+                .map(TimelineSnapshot::topFrames)
+                .map(map -> map.getOrDefault(threadName, ""))
+                .filter(frame -> !frame.isBlank())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        Set<String> states = snapshots.stream()
+                .map(TimelineSnapshot::states)
+                .map(map -> map.getOrDefault(threadName, ""))
+                .filter(state -> !state.isBlank())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        long appearances = snapshots.stream()
+                .map(TimelineSnapshot::states)
+                .filter(map -> map.containsKey(threadName))
+                .count();
+        return appearances >= 2
+                && topFrames.size() == 1
+                && states.size() == 1
+                && states.stream().findFirst().map(state ->
+                state.equals("BLOCKED") || state.equals("WAITING") || state.equals("TIMED_WAITING")).orElse(false);
+    }
+
+    private long blockedOccurrences(String threadName) {
+        return snapshots.stream()
+                .map(TimelineSnapshot::states)
+                .map(map -> map.getOrDefault(threadName, ""))
+                .filter(state -> state.equals("BLOCKED"))
+                .count();
+    }
+
+    private String mostCommonTopFrame(String threadName) {
+        return snapshots.stream()
+                .map(TimelineSnapshot::topFrames)
+                .map(map -> map.getOrDefault(threadName, ""))
+                .filter(frame -> !frame.isBlank())
+                .collect(Collectors.groupingBy(frame -> frame, Collectors.counting()))
+                .entrySet().stream()
+                .max(Map.Entry.comparingByValue())
+                .map(Map.Entry::getKey)
+                .orElse("—");
+    }
+
+    private String buildSummary(List<String> visibleThreads) {
+        long stuck = visibleThreads.stream().filter(this::isStuckCandidate).count();
+        long blockedHeavy = visibleThreads.stream().filter(name -> blockedOccurrences(name) >= 2).count();
+        return stuck + " stuck candidate(s)  ·  " + blockedHeavy + " repeatedly blocked thread(s)";
     }
 }

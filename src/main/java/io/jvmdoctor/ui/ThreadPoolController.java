@@ -24,14 +24,18 @@ public class ThreadPoolController implements Initializable {
     @FXML private Label statsLabel;
     @FXML private TableView<ThreadPool> poolTable;
     @FXML private TableColumn<ThreadPool, String> poolNameCol;
+    @FXML private TableColumn<ThreadPool, String> kindCol;
+    @FXML private TableColumn<ThreadPool, String> healthCol;
     @FXML private TableColumn<ThreadPool, Number> totalCol;
     @FXML private TableColumn<ThreadPool, Number> runnableCol;
     @FXML private TableColumn<ThreadPool, Number> waitingCol;
     @FXML private TableColumn<ThreadPool, Number> blockedCol;
     @FXML private TableColumn<ThreadPool, String> dominantCol;
+    @FXML private TableColumn<ThreadPool, String> topFrameCol;
 
     @FXML private VBox threadDetailBox;
     @FXML private Label selectedPoolLabel;
+    @FXML private Label selectedPoolHintLabel;
     @FXML private ListView<String> threadListView;
 
     private final ObservableList<ThreadPool> allPools = FXCollections.observableArrayList();
@@ -40,11 +44,28 @@ public class ThreadPoolController implements Initializable {
     @Override
     public void initialize(URL location, ResourceBundle resources) {
         poolNameCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().name()));
+        kindCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().kind()));
+        healthCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().health()));
         totalCol.setCellValueFactory(c -> new SimpleIntegerProperty(c.getValue().total()));
         runnableCol.setCellValueFactory(c -> new SimpleLongProperty(c.getValue().runnable()));
         waitingCol.setCellValueFactory(c -> new SimpleLongProperty(c.getValue().waiting()));
         blockedCol.setCellValueFactory(c -> new SimpleLongProperty(c.getValue().blocked()));
         dominantCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().dominantState()));
+        topFrameCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().dominantTopFrame()));
+
+        healthCol.setCellFactory(col -> new TableCell<>() {
+            @Override
+            protected void updateItem(String state, boolean empty) {
+                super.updateItem(state, empty);
+                getStyleClass().removeAll("state-blocked", "state-waiting", "state-runnable");
+                if (empty || state == null) { setText(null); return; }
+                setText(state);
+                switch (state) {
+                    case "Contended", "Starved" -> getStyleClass().add("state-blocked");
+                    case "Busy", "Active" -> getStyleClass().add("state-runnable");
+                }
+            }
+        });
 
         // Colour the dominant state cell
         dominantCol.setCellFactory(col -> new TableCell<>() {
@@ -60,6 +81,20 @@ public class ThreadPoolController implements Initializable {
                          "TIMED_WAITING" -> getStyleClass().add("state-waiting");
                     case "RUNNABLE"      -> getStyleClass().add("state-runnable");
                 }
+            }
+        });
+
+        topFrameCol.setCellFactory(col -> new TableCell<>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setTooltip(null);
+                    return;
+                }
+                setText(shorten(item));
+                setTooltip(new Tooltip(item));
             }
         });
 
@@ -87,6 +122,7 @@ public class ThreadPoolController implements Initializable {
             }
             threadDetailBox.setVisible(true);
             selectedPoolLabel.setText(sel.name() + "  (" + sel.total() + " threads)");
+            selectedPoolHintLabel.setText(sel.kind() + "  ·  " + sel.health() + "  ·  " + sel.dominantTopFrame());
             List<String> lines = sel.threads().stream()
                     .sorted((a, b) -> {
                         int pa = statePriority(a.state());
@@ -106,7 +142,10 @@ public class ThreadPoolController implements Initializable {
         filterField.clear();
         threadDetailBox.setVisible(false);
         long singles = pools.stream().filter(p -> p.total() == 1).count();
-        statsLabel.setText(pools.size() + " groups  ·  " + singles + " singletons");
+        long unhealthy = pools.stream()
+                .filter(p -> !"Healthy".equals(p.health()))
+                .count();
+        statsLabel.setText(pools.size() + " groups  ·  " + singles + " singletons  ·  " + unhealthy + " flagged");
     }
 
     private void applyFilter(String text) {
@@ -120,6 +159,9 @@ public class ThreadPoolController implements Initializable {
         sb.append("[").append(t.state()).append("]  ").append(t.name());
         if (t.waitingOnLock() != null)
             sb.append("  ← ").append(t.waitingOnLock());
+        if (t.stackFrames() != null && !t.stackFrames().isEmpty()) {
+            sb.append("  ·  ").append(shorten(t.stackFrames().get(0).className() + "." + t.stackFrames().get(0).methodName()));
+        }
         return sb.toString();
     }
 
@@ -130,5 +172,9 @@ public class ThreadPoolController implements Initializable {
             case "TIMED_WAITING" -> 2;
             default -> 3;
         };
+    }
+
+    private String shorten(String text) {
+        return text.length() <= 42 ? text : text.substring(0, 39) + "...";
     }
 }

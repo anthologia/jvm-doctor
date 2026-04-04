@@ -13,6 +13,7 @@
     <HBox spacing="8" alignment="CENTER_LEFT">
         <Label text="Filter:" styleClass="filter-label"/>
         <TextField fx:id="filterField" promptText="class or method name…" HBox.hgrow="ALWAYS"/>
+        <CheckBox fx:id="hideJdkFramesCheck" text="Hide JDK frames" />
         <Label fx:id="statsLabel" text="" styleClass="status-label"/>
     </HBox>
 

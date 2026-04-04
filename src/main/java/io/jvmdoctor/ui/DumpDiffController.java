@@ -30,6 +30,8 @@ public class DumpDiffController implements Initializable {
     @FXML private TableView<ThreadDelta> diffTable;
     @FXML private TableColumn<ThreadDelta, String> changeCol;
     @FXML private TableColumn<ThreadDelta, String> nameCol;
+    @FXML private TableColumn<ThreadDelta, String> transitionCol;
+    @FXML private TableColumn<ThreadDelta, String> signalsCol;
     @FXML private TableColumn<ThreadDelta, String> beforeCol;
     @FXML private TableColumn<ThreadDelta, String> afterCol;
     @FXML private TextArea detailArea;
@@ -53,10 +55,30 @@ public class DumpDiffController implements Initializable {
         });
 
         nameCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().threadName()));
+        transitionCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().transitionLabel()));
+        signalsCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().signals()));
         beforeCol.setCellValueFactory(c -> new SimpleStringProperty(
                 c.getValue().stateBefore() == null ? "—" : c.getValue().stateBefore()));
         afterCol.setCellValueFactory(c -> new SimpleStringProperty(
                 c.getValue().stateAfter() == null ? "—" : c.getValue().stateAfter()));
+
+        signalsCol.setCellFactory(col -> new TableCell<>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                getStyleClass().removeAll("state-blocked", "state-waiting");
+                if (empty || item == null || item.isBlank()) {
+                    setText(null);
+                    return;
+                }
+                setText(item);
+                if (item.contains("NEW_BLOCKED") || item.contains("STUCK")) {
+                    getStyleClass().add("state-blocked");
+                } else if (item.contains("BLOCK_RESOLVED")) {
+                    getStyleClass().add("state-waiting");
+                }
+            }
+        });
 
         // Row styling
         diffTable.setRowFactory(tv -> new TableRow<>() {
@@ -98,8 +120,9 @@ public class DumpDiffController implements Initializable {
     public void setDiff(DumpDiff diff) {
         allDeltas.setAll(diff.deltas());
         summaryLabel.setText(String.format(
-                "+%d added   -%d removed   ~%d state changed   =%d unchanged",
-                diff.addedCount(), diff.removedCount(), diff.changedCount(), diff.unchangedCount()));
+                "+%d added   -%d removed   ~%d state changed   =%d unchanged   !%d new blocked   ->%d resolved   ~%d stuck",
+                diff.addedCount(), diff.removedCount(), diff.changedCount(), diff.unchangedCount(),
+                diff.newlyBlockedCount(), diff.resolvedBlockedCount(), diff.stuckCount()));
         applyFilter();
         detailArea.clear();
     }
@@ -119,7 +142,12 @@ public class DumpDiffController implements Initializable {
                 case STATE_CHANGED -> showChanged.isSelected();
                 case UNCHANGED     -> showUnchanged.isSelected();
             };
-            boolean nameOk = text.isEmpty() || d.threadName().toLowerCase().contains(text);
+            boolean nameOk = text.isEmpty()
+                    || d.threadName().toLowerCase().contains(text)
+                    || d.transitionLabel().toLowerCase().contains(text)
+                    || d.signals().toLowerCase().contains(text)
+                    || d.topFrameBefore().toLowerCase().contains(text)
+                    || d.topFrameAfter().toLowerCase().contains(text);
             return typeOk && nameOk;
         });
     }
@@ -148,6 +176,9 @@ public class DumpDiffController implements Initializable {
         sb.append("Change: ").append(d.change()).append("\n");
         if (d.stateBefore() != null) sb.append("Before: ").append(d.stateBefore()).append("\n");
         if (d.stateAfter()  != null) sb.append("After:  ").append(d.stateAfter()).append("\n");
+        if (!d.topFrameBefore().isBlank()) sb.append("Top before: ").append(d.topFrameBefore()).append("\n");
+        if (!d.topFrameAfter().isBlank()) sb.append("Top after:  ").append(d.topFrameAfter()).append("\n");
+        if (!d.signals().isBlank()) sb.append("Signals: ").append(d.signals()).append("\n");
 
         ThreadInfo ref = d.threadAfter() != null ? d.threadAfter() : d.threadBefore();
         if (ref != null) {

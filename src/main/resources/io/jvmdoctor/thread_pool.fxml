@@ -23,6 +23,8 @@
         <TableView fx:id="poolTable" VBox.vgrow="ALWAYS">
             <columns>
                 <TableColumn fx:id="poolNameCol"  text="Pool / Thread Group"  prefWidth="260" minWidth="140"/>
+                <TableColumn fx:id="kindCol"      text="Kind"      prefWidth="90"/>
+                <TableColumn fx:id="healthCol"    text="Health"    prefWidth="100"/>
                 <TableColumn fx:id="totalCol"     text="Total"    prefWidth="60"
                              style="-fx-alignment: CENTER_RIGHT;"/>
                 <TableColumn fx:id="runnableCol"  text="Run"      prefWidth="55"
@@ -31,7 +33,8 @@
                              style="-fx-alignment: CENTER_RIGHT;"/>
                 <TableColumn fx:id="blockedCol"   text="Blocked"  prefWidth="65"
                              style="-fx-alignment: CENTER_RIGHT;"/>
-                <TableColumn fx:id="dominantCol"  text="Dominant State" prefWidth="130"/>
+                <TableColumn fx:id="dominantCol"  text="Dominant State" prefWidth="120"/>
+                <TableColumn fx:id="topFrameCol"  text="Dominant Top Frame" prefWidth="220"/>
             </columns>
             <placeholder>
                 <Label text="No data yet. Open a thread dump to analyze."/>
@@ -43,6 +46,7 @@
     <VBox fx:id="threadDetailBox" spacing="4">
         <padding><Insets top="6" right="12" bottom="8" left="12"/></padding>
         <Label fx:id="selectedPoolLabel" styleClass="card-title"/>
+        <Label fx:id="selectedPoolHintLabel" styleClass="status-label"/>
         <ListView fx:id="threadListView" VBox.vgrow="ALWAYS" styleClass="list-view"
                   style="-fx-font-family: monospace; -fx-font-size: 12px;"/>
     </VBox>

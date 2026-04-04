@@ -20,16 +20,19 @@
         <Label fx:id="statusLabel" text="Add dumps to begin." styleClass="status-label"/>
     </HBox>
 
+    <Label fx:id="summaryLabel" text="Load multiple dumps to surface stuck threads and state transitions."
+           styleClass="status-label"/>
+
     <!-- Legend -->
     <HBox spacing="12" alignment="CENTER_LEFT">
         <Label text="Legend:" styleClass="filter-label"/>
-        <Label text="■" style="-fx-text-fill: #a6e3a1;" />
+        <Label text="■" style="-fx-text-fill: #3677e0;" />
         <Label text="RUNNABLE" styleClass="filter-label"/>
-        <Label text="■" style="-fx-text-fill: #f38ba8;" />
+        <Label text="■" style="-fx-text-fill: #c73a4f;" />
         <Label text="BLOCKED" styleClass="filter-label"/>
-        <Label text="■" style="-fx-text-fill: #fab387;" />
+        <Label text="■" style="-fx-text-fill: #b99132;" />
         <Label text="WAITING" styleClass="filter-label"/>
-        <Label text="■" style="-fx-text-fill: #f9e2af;" />
+        <Label text="■" style="-fx-text-fill: #8c6a45;" />
         <Label text="TIMED_WAITING" styleClass="filter-label"/>
         <Label text="■" style="-fx-text-fill: #313244;" />
         <Label text="absent" styleClass="filter-label"/>

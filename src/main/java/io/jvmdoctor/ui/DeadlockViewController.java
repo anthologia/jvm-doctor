@@ -17,26 +17,35 @@ public class DeadlockViewController implements Initializable {
 
     @FXML private VBox deadlockContainer;
     @FXML private Label deadlockStatusLabel;
+    @FXML private Label findingCountLabel;
+    @FXML private Label criticalCountLabel;
+    @FXML private Label warningCountLabel;
     @FXML private ListView<String> findingsList;
     @FXML private TextArea findingDetail;
 
-    private List<AnalysisReport> reports;
+    private List<FindingRow> rows = List.of();
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
-        findingsList.getSelectionModel().selectedItemProperty().addListener((obs, old, selected) -> {
-            // Detail is stored as the item's full text after separator
-            // We store index mapping via userData trick below
+        findingsList.getSelectionModel().selectedIndexProperty().addListener((obs, old, idx) -> {
+            int i = idx.intValue();
+            if (i >= 0 && i < rows.size()) {
+                FindingRow row = rows.get(i);
+                AnalysisReport.Finding finding = row.finding();
+                findingDetail.setText("Analyzer: " + row.analyzerName() + "\n"
+                        + "Severity: " + finding.severity() + "\n\n"
+                        + finding.title() + "\n\n" + finding.detail());
+            } else {
+                findingDetail.clear();
+            }
         });
     }
 
     public void setReports(List<AnalysisReport> reports, ThreadDump dump) {
-        this.reports = reports;
         findingsList.getItems().clear();
         findingDetail.clear();
 
         boolean hasCritical = reports.stream().anyMatch(AnalysisReport::hasCritical);
-
         if (hasCritical) {
             deadlockStatusLabel.setText("CRITICAL ISSUES DETECTED");
             deadlockStatusLabel.getStyleClass().removeAll("status-ok");
@@ -47,29 +56,32 @@ public class DeadlockViewController implements Initializable {
             deadlockStatusLabel.getStyleClass().add("status-ok");
         }
 
-        List<AnalysisReport.Finding> allFindings = reports.stream()
-                .flatMap(r -> r.findings().stream())
+        rows = reports.stream()
+                .flatMap(report -> report.findings().stream()
+                        .map(finding -> new FindingRow(report.analyzerName(), finding)))
                 .toList();
 
-        for (AnalysisReport.Finding f : allFindings) {
-            String icon = switch (f.severity()) {
+        long critical = rows.stream().filter(row -> row.finding().severity() == AnalysisReport.Severity.CRITICAL).count();
+        long warnings = rows.stream().filter(row -> row.finding().severity() == AnalysisReport.Severity.WARNING).count();
+
+        findingCountLabel.setText(rows.size() + " findings");
+        criticalCountLabel.setText(critical + " critical");
+        warningCountLabel.setText(warnings + " warnings");
+
+        for (FindingRow row : rows) {
+            String icon = switch (row.finding().severity()) {
                 case CRITICAL -> "🔴 ";
                 case WARNING  -> "⚠️ ";
                 case INFO     -> "ℹ️ ";
             };
-            findingsList.getItems().add(icon + "[" + f.severity() + "] " + f.title());
+            findingsList.getItems().add(icon + "[" + row.finding().severity() + "] "
+                    + row.analyzerName() + " · " + row.finding().title());
         }
-
-        findingsList.getSelectionModel().selectedIndexProperty().addListener((obs, old, idx) -> {
-            int i = idx.intValue();
-            if (i >= 0 && i < allFindings.size()) {
-                AnalysisReport.Finding f = allFindings.get(i);
-                findingDetail.setText(f.title() + "\n\n" + f.detail());
-            }
-        });
 
         if (!findingsList.getItems().isEmpty()) {
             findingsList.getSelectionModel().select(0);
         }
     }
+
+    private record FindingRow(String analyzerName, AnalysisReport.Finding finding) {}
 }

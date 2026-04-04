@@ -13,6 +13,12 @@
     <Label fx:id="deadlockStatusLabel" text="No analysis yet"
            styleClass="deadlock-status" maxWidth="Infinity"/>
 
+    <HBox spacing="10" alignment="CENTER_LEFT">
+        <Label fx:id="findingCountLabel" text="0 findings" styleClass="status-label"/>
+        <Label fx:id="criticalCountLabel" text="0 critical" styleClass="status-label"/>
+        <Label fx:id="warningCountLabel" text="0 warnings" styleClass="status-label"/>
+    </HBox>
+
     <SplitPane dividerPositions="0.38" VBox.vgrow="ALWAYS">
 
         <VBox spacing="4">

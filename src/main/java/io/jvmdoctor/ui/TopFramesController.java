@@ -19,6 +19,7 @@ import java.util.function.Consumer;
 public class TopFramesController implements Initializable {
 
     @FXML private TextField filterField;
+    @FXML private CheckBox hideJdkFramesCheck;
     @FXML private Label statsLabel;
     @FXML private TableView<FrameStat> framesTable;
     @FXML private TableColumn<FrameStat, String>  methodCol;
@@ -79,13 +80,8 @@ public class TopFramesController implements Initializable {
         filteredFrames = new FilteredList<>(allFrames, f -> true);
         framesTable.setItems(filteredFrames);
 
-        filterField.textProperty().addListener((obs, old, text) -> {
-            String lower = text == null ? "" : text.toLowerCase();
-            filteredFrames.setPredicate(f ->
-                    lower.isEmpty()
-                    || f.className().toLowerCase().contains(lower)
-                    || f.methodName().toLowerCase().contains(lower));
-        });
+        filterField.textProperty().addListener((obs, old, text) -> applyFilter());
+        hideJdkFramesCheck.selectedProperty().addListener((obs, old, selected) -> applyFilter());
 
         // Double-click a row to toggle the linked thread filter.
         framesTable.setRowFactory(tv -> {
@@ -111,11 +107,32 @@ public class TopFramesController implements Initializable {
         allFrames.setAll(frames);
         selectedFrameKey = null;
         filterField.clear();
+        hideJdkFramesCheck.setSelected(true);
         framesTable.getSelectionModel().clearSelection();
-        statsLabel.setText(frames.size() + " unique frames");
+        applyFilter();
     }
 
     public void setOnFrameClicked(Consumer<String> handler) {
         this.onFrameClicked = handler;
+    }
+
+    private void applyFilter() {
+        String lower = filterField.getText() == null ? "" : filterField.getText().toLowerCase();
+        boolean hideJdk = hideJdkFramesCheck.isSelected();
+        filteredFrames.setPredicate(f -> {
+            boolean textMatch = lower.isEmpty()
+                    || f.className().toLowerCase().contains(lower)
+                    || f.methodName().toLowerCase().contains(lower);
+            boolean frameMatch = !hideJdk || !isJdkFrame(f.className());
+            return textMatch && frameMatch;
+        });
+        statsLabel.setText(filteredFrames.size() + " / " + allFrames.size() + " unique frames");
+    }
+
+    private boolean isJdkFrame(String className) {
+        return className.startsWith("java.")
+                || className.startsWith("javax.")
+                || className.startsWith("jdk.")
+                || className.startsWith("sun.");
     }
 }

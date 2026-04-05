@@ -181,11 +181,12 @@ public class DumpDiffController implements Initializable {
         snapshotCount = analysis.snapshotCount();
         seriesByThreadName = analysis.seriesByThreadName();
         anchorSnapshotLabel.setText(analysis.baselineLabel());
-        targetSnapshotIndexes = java.util.stream.IntStream.range(1, analysis.snapshotCount())
+        targetSnapshotIndexes = java.util.stream.IntStream.range(0, analysis.snapshotCount())
+                .filter(index -> index != analysis.baselineIndex())
                 .boxed()
                 .toList();
         List<String> targetLabels = targetSnapshotIndexes.stream()
-                .map(index -> analysis.snapshots().get(index).label())
+                .map(index -> targetLabel(analysis, index))
                 .toList();
         toSnapshotBox.setItems(FXCollections.observableArrayList(targetLabels));
         toSnapshotBox.setDisable(targetLabels.isEmpty());
@@ -193,14 +194,15 @@ public class DumpDiffController implements Initializable {
         if (!targetLabels.isEmpty()) {
             int initialTargetIndex = targetSnapshotIndexes.indexOf(preferredTargetSnapshotIndex);
             if (initialTargetIndex < 0) {
-                initialTargetIndex = targetLabels.size() - 1;
+                int defaultTargetIndex = targetSnapshotIndexes.indexOf(analysis.defaultComparisonIndex());
+                initialTargetIndex = defaultTargetIndex >= 0 ? defaultTargetIndex : targetLabels.size() - 1;
             }
             toSnapshotBox.getSelectionModel().select(initialTargetIndex);
             updateSelectedPair();
         } else {
             allDeltas.clear();
-            sessionLabel.setText("Need at least two snapshots in the session to use Pair Diff.");
-            summaryLabel.setText("Load more snapshots to compare the anchor against a later target.");
+            sessionLabel.setText("Need at least one other snapshot to compare against the baseline.");
+            summaryLabel.setText("Add more snapshots or move the baseline so another snapshot can be compared.");
             onTargetSnapshotChanged.accept(-1);
         }
     }
@@ -211,19 +213,19 @@ public class DumpDiffController implements Initializable {
         seriesByThreadName = Map.of();
         snapshotCount = 0;
         targetSnapshotIndexes = List.of();
-        anchorSnapshotLabel.setText("Session anchor");
+        anchorSnapshotLabel.setText("Baseline dump");
         toSnapshotBox.getItems().clear();
         toSnapshotBox.setDisable(true);
         latestTargetBtn.setDisable(true);
-        sessionLabel.setText("Pair Diff compares the fixed anchor against one later loaded dump.");
-        summaryLabel.setText("Start a session, then choose a later dump from the target picker or the session rail.");
+        sessionLabel.setText("Compare To Baseline shows how one snapshot drifted from the baseline dump.");
+        summaryLabel.setText("Use a baseline, add snapshots, then choose any non-baseline snapshot from the selector or rail.");
         diffTable.getSelectionModel().clearSelection();
         detailArea.clear();
         onTargetSnapshotChanged.accept(-1);
     }
 
     public void selectTargetSnapshot(int snapshotIndex) {
-        if (snapshotIndex <= 0 || targetSnapshotIndexes.isEmpty()) {
+        if (analysis == null || snapshotIndex < 0 || snapshotIndex == analysis.baselineIndex() || targetSnapshotIndexes.isEmpty()) {
             return;
         }
         int targetSelectionIndex = targetSnapshotIndexes.indexOf(snapshotIndex);
@@ -252,7 +254,7 @@ public class DumpDiffController implements Initializable {
         if (targetSelectionIndex < 0 || targetSelectionIndex >= targetSnapshotIndexes.size()) {
             return;
         }
-        int fromIndex = 0;
+        int fromIndex = analysis.baselineIndex();
         int toIndex = targetSnapshotIndexes.get(targetSelectionIndex);
 
         DumpDiff diff = dumpDiffer.diff(
@@ -260,7 +262,7 @@ public class DumpDiffController implements Initializable {
                 analysis.snapshots().get(toIndex).dump());
         allDeltas.setAll(diff.deltas());
         sessionLabel.setText(String.format(
-                "Anchor Pair Diff  ·  %s  vs  %s  ·  %d-snapshot session",
+                "Baseline Comparison  ·  %s  vs  %s  ·  %d snapshots loaded",
                 analysis.snapshots().get(fromIndex).label(),
                 analysis.snapshots().get(toIndex).label(),
                 analysis.snapshotCount()));
@@ -283,8 +285,15 @@ public class DumpDiffController implements Initializable {
         if (analysis == null || targetSnapshotIndexes.isEmpty()) {
             return;
         }
-        toSnapshotBox.getSelectionModel().select(targetSnapshotIndexes.size() - 1);
+        int latestSnapshotIndex = analysis.snapshotCount() - 1;
+        int selectionIndex = targetSnapshotIndexes.indexOf(latestSnapshotIndex);
+        toSnapshotBox.getSelectionModel().select(selectionIndex >= 0 ? selectionIndex : targetSnapshotIndexes.size() - 1);
         updateSelectedPair();
+    }
+
+    private String targetLabel(MultiDumpAnalysis analysis, int snapshotIndex) {
+        String relation = snapshotIndex < analysis.baselineIndex() ? "Earlier" : "Later";
+        return "#" + (snapshotIndex + 1) + "  " + analysis.snapshots().get(snapshotIndex).label() + "  ·  " + relation;
     }
 
     private void applyFilter() {

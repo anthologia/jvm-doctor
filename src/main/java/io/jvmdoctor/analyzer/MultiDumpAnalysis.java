@@ -8,19 +8,42 @@ import java.util.stream.Collectors;
 
 public record MultiDumpAnalysis(
         List<TimelineSnapshot> snapshots,
+        int baselineIndex,
         DumpDiff boundaryDiff,
         List<ThreadSeries> threadSeries
 ) {
+    public MultiDumpAnalysis {
+        snapshots = List.copyOf(snapshots);
+        baselineIndex = snapshots.isEmpty() ? -1 : Math.max(0, Math.min(baselineIndex, snapshots.size() - 1));
+        boundaryDiff = boundaryDiff == null ? new DumpDiff(List.of()) : boundaryDiff;
+        threadSeries = List.copyOf(threadSeries);
+    }
+
     public int snapshotCount() {
         return snapshots.size();
     }
 
+    public TimelineSnapshot baselineSnapshot() {
+        return baselineIndex >= 0 && baselineIndex < snapshots.size() ? snapshots.get(baselineIndex) : null;
+    }
+
     public String baselineLabel() {
-        return snapshots.isEmpty() ? "—" : snapshots.get(0).label();
+        TimelineSnapshot baseline = baselineSnapshot();
+        return baseline == null ? "—" : baseline.label();
     }
 
     public String latestLabel() {
         return snapshots.isEmpty() ? "—" : snapshots.get(snapshots.size() - 1).label();
+    }
+
+    public int defaultComparisonIndex() {
+        if (snapshots.size() < 2) {
+            return -1;
+        }
+        if (baselineIndex != snapshots.size() - 1) {
+            return snapshots.size() - 1;
+        }
+        return snapshots.size() - 2;
     }
 
     public int unionThreadCount() {

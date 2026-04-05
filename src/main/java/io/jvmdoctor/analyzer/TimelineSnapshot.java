@@ -12,7 +12,11 @@ import java.util.stream.Collectors;
  * label  = e.g. the filename or a timestamp
  * states = threadName → state (UPPER_CASE)
  */
-public record TimelineSnapshot(String label, String sourcePath, ThreadDump dump) {
+public record TimelineSnapshot(String label, String sourcePath, String rawText, ThreadDump dump) {
+
+    public TimelineSnapshot(String label, String sourcePath, ThreadDump dump) {
+        this(label, sourcePath, null, dump);
+    }
 
     public Map<String, String> states() {
         return dump().threads().stream()

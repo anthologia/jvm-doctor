@@ -57,8 +57,9 @@ public class TimelineController implements Initializable {
     public void setAnalysis(MultiDumpAnalysis analysis) {
         this.analysis = analysis;
         sessionLabel.setText(String.format(
-                "Tracking a %d-snapshot session  ·  %s through %s",
+                "Tracking %d loaded snapshots  ·  baseline #%d %s  ·  latest %s",
                 analysis.snapshotCount(),
+                analysis.baselineIndex() + 1,
                 analysis.baselineLabel(),
                 analysis.latestLabel()));
         rebuildHeatmap();
@@ -69,9 +70,9 @@ public class TimelineController implements Initializable {
         heatmapGrid.getChildren().clear();
         heatmapGrid.getColumnConstraints().clear();
         heatmapGrid.getRowConstraints().clear();
-        sessionLabel.setText("Start a session to track recurring threads across loaded dumps.");
-        statusLabel.setText("No session loaded.");
-        summaryLabel.setText("The session rail on the right shows every loaded dump and lets you pivot into Pair Diff.");
+        sessionLabel.setText("Use a baseline and add snapshots to track recurring threads over time.");
+        statusLabel.setText("No snapshot review loaded.");
+        summaryLabel.setText("The snapshot rail on the right keeps every loaded dump visible, can re-anchor the baseline, and can open Compare To Baseline.");
     }
 
     private void rebuildHeatmap() {
@@ -111,7 +112,9 @@ public class TimelineController implements Initializable {
         heatmapGrid.add(headerLabel("Thread"), 2, 0);
         for (int index = 0; index < analysis.snapshotCount(); index++) {
             Label header = headerLabel("#" + (index + 1));
-            Tooltip.install(header, new Tooltip(analysis.snapshots().get(index).label()));
+            String headerTooltip = analysis.snapshots().get(index).label()
+                    + (index == analysis.baselineIndex() ? "\nBaseline snapshot" : "");
+            Tooltip.install(header, new Tooltip(headerTooltip));
             heatmapGrid.add(header, index + 3, 0);
         }
 
@@ -148,7 +151,7 @@ public class TimelineController implements Initializable {
         }
 
         statusLabel.setText(String.format(
-                "%d snapshot(s)  ·  %d thread(s) shown  ·  %d suspicious",
+                "%d snapshots  ·  %d threads shown  ·  %d suspicious",
                 analysis.snapshotCount(),
                 visibleSeries.size(),
                 visibleSeries.stream().filter(ThreadSeries::suspicious).count()));

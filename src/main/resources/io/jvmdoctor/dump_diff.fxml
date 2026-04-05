@@ -14,18 +14,18 @@
     <VBox spacing="6">
         <padding><Insets top="8" right="12" bottom="4" left="12"/></padding>
 
-        <Label fx:id="sessionLabel" text="Pair Diff compares the fixed anchor against one later loaded dump."
+        <Label fx:id="sessionLabel" text="Compare To Baseline shows how one snapshot drifted from the baseline dump."
                styleClass="status-label"/>
 
         <HBox spacing="8" alignment="CENTER_LEFT">
-            <Label text="Source" styleClass="filter-label"/>
-            <Label fx:id="anchorSnapshotLabel" text="Session anchor" styleClass="session-anchor-pill"/>
-            <Label text="Target" styleClass="filter-label"/>
-            <ComboBox fx:id="toSnapshotBox" prefWidth="210" promptText="Choose target snapshot"/>
+            <Label text="Baseline" styleClass="filter-label"/>
+            <Label fx:id="anchorSnapshotLabel" text="Baseline dump" styleClass="session-anchor-pill"/>
+            <Label text="Snapshot" styleClass="filter-label"/>
+            <ComboBox fx:id="toSnapshotBox" prefWidth="210" promptText="Choose snapshot"/>
             <Button fx:id="latestTargetBtn" text="Latest" styleClass="toolbar-btn, toolbar-btn-subtle"/>
         </HBox>
 
-        <Label fx:id="summaryLabel" text="Choose a later dump from the target picker or the session rail on the right."
+        <Label fx:id="summaryLabel" text="Pick any non-baseline snapshot from the selector or the snapshot rail on the right."
                styleClass="card-title"/>
 
         <!-- Filter chips + text filter -->
@@ -47,7 +47,7 @@
                 <TableColumn fx:id="afterCol"  text="Flips"  prefWidth="90" minWidth="70"/>
             </columns>
             <placeholder>
-                <Label text="No pair diff yet. Start a session, then pick a later dump to compare against the anchor."/>
+                <Label text="No comparison yet. Set a baseline, add snapshots, then pick one to compare."/>
             </placeholder>
         </TableView>
     </VBox>

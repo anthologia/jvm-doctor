@@ -20,13 +20,13 @@
         <Separator orientation="VERTICAL"/>
         <Label text="Filter threads:" styleClass="filter-label"/>
         <TextField fx:id="filterField" promptText="thread name…" HBox.hgrow="ALWAYS"/>
-        <Label fx:id="statusLabel" text="Add dumps to begin." styleClass="status-label"/>
+        <Label fx:id="statusLabel" text="Add snapshots to begin." styleClass="status-label"/>
     </HBox>
 
-    <Label fx:id="sessionLabel" text="Start a session to track recurring threads across loaded dumps."
+    <Label fx:id="sessionLabel" text="Use a baseline and add snapshots to track recurring threads over time."
            styleClass="status-label"/>
 
-    <Label fx:id="summaryLabel" text="The session rail on the right shows every loaded dump and helps you pivot into Pair Diff."
+    <Label fx:id="summaryLabel" text="The snapshot rail on the right keeps every loaded dump visible, can re-anchor the baseline, and can open Compare To Baseline."
            styleClass="status-label"/>
 
     <!-- Legend -->

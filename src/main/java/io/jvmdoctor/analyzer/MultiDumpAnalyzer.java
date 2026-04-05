@@ -16,9 +16,15 @@ public class MultiDumpAnalyzer {
     private final DumpDiffer dumpDiffer = new DumpDiffer();
 
     public MultiDumpAnalysis analyze(List<TimelineSnapshot> snapshots) {
+        return analyze(snapshots, 0);
+    }
+
+    public MultiDumpAnalysis analyze(List<TimelineSnapshot> snapshots, int baselineIndex) {
         List<TimelineSnapshot> orderedSnapshots = List.copyOf(snapshots);
-        DumpDiff boundaryDiff = orderedSnapshots.size() >= 2
-                ? dumpDiffer.diff(orderedSnapshots.get(0).dump(), orderedSnapshots.get(orderedSnapshots.size() - 1).dump())
+        int resolvedBaselineIndex = resolveBaselineIndex(orderedSnapshots, baselineIndex);
+        int comparisonIndex = defaultComparisonIndex(orderedSnapshots, resolvedBaselineIndex);
+        DumpDiff boundaryDiff = comparisonIndex >= 0
+                ? dumpDiffer.diff(orderedSnapshots.get(resolvedBaselineIndex).dump(), orderedSnapshots.get(comparisonIndex).dump())
                 : new DumpDiff(List.of());
         Map<String, DumpDiff.ThreadDelta> boundaryByName = boundaryDiff.deltas().stream()
                 .collect(Collectors.toMap(DumpDiff.ThreadDelta::threadName, delta -> delta, (left, right) -> left));
@@ -47,7 +53,24 @@ public class MultiDumpAnalyzer {
                 })
                 .toList();
 
-        return new MultiDumpAnalysis(orderedSnapshots, boundaryDiff, series);
+        return new MultiDumpAnalysis(orderedSnapshots, resolvedBaselineIndex, boundaryDiff, series);
+    }
+
+    private int resolveBaselineIndex(List<TimelineSnapshot> snapshots, int baselineIndex) {
+        if (snapshots.isEmpty()) {
+            return -1;
+        }
+        return Math.max(0, Math.min(baselineIndex, snapshots.size() - 1));
+    }
+
+    private int defaultComparisonIndex(List<TimelineSnapshot> snapshots, int baselineIndex) {
+        if (snapshots.size() < 2 || baselineIndex < 0) {
+            return -1;
+        }
+        if (baselineIndex != snapshots.size() - 1) {
+            return snapshots.size() - 1;
+        }
+        return snapshots.size() - 2;
     }
 
     private ThreadSeries buildSeries(String threadName, List<TimelineSnapshot> snapshots, DumpDiff.ThreadDelta boundaryDelta) {

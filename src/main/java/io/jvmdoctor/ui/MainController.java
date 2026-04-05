@@ -20,6 +20,7 @@ import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.stage.Modality;
 import javafx.stage.FileChooser;
@@ -81,21 +82,24 @@ public class MainController implements Initializable {
     @FXML private Tab deadlockTab;
     @FXML private Tab rawTab;
     @FXML private SplitPane workspaceSplit;
-    @FXML private HBox sessionWorkspaceBar;
-    @FXML private Label sessionWorkspaceStatusLabel;
+    @FXML private Label baselineDumpLabel;
     @FXML private Button compareDumpsBtn;
     @FXML private ToggleButton sessionTimelineNavBtn;
     @FXML private ToggleButton pairDiffNavBtn;
     @FXML private Button sessionClearWorkspaceBtn;
+    @FXML private StackPane sessionSidebarHost;
     @FXML private VBox sessionSidebar;
+    @FXML private VBox sessionSidebarCollapsed;
     @FXML private Label sessionSidebarStatusLabel;
     @FXML private Label sessionSidebarHintLabel;
     @FXML private ListView<TimelineSnapshot> sessionSnapshotList;
     @FXML private Label sessionSelectionLabel;
     @FXML private TextField sessionSelectionField;
+    @FXML private Button sessionSidebarCollapseBtn;
+    @FXML private Button sessionSidebarExpandBtn;
+    @FXML private Button sessionMakeBaselineBtn;
     @FXML private Button sessionUseTargetBtn;
     @FXML private Button sessionRemoveBtn;
-    @FXML private Button sessionClearBtn;
 
     // --- Thread table (injected sub-controller) ---
     @FXML private ThreadTableController threadTableController;
@@ -141,6 +145,7 @@ public class MainController implements Initializable {
     private final ObservableList<TimelineSnapshot> sessionSnapshotItems = FXCollections.observableArrayList();
     private int sessionTargetSnapshotIndex = -1;
     private double workspaceDividerPosition = 0.78;
+    private boolean sessionSidebarCollapsedState = false;
     private String statusBeforeDrag;
     private boolean stateChartRefreshScheduled = false;
 
@@ -215,7 +220,7 @@ public class MainController implements Initializable {
         });
         if (!workspaceSplit.getDividers().isEmpty()) {
             workspaceSplit.getDividers().get(0).positionProperty().addListener((obs, old, updated) -> {
-                if (Boolean.TRUE.equals(sessionSidebar.isVisible()) && updated.doubleValue() < 0.98) {
+                if (!sessionSidebarCollapsedState && updated.doubleValue() < 0.98) {
                     workspaceDividerPosition = updated.doubleValue();
                 }
             });
@@ -225,7 +230,7 @@ public class MainController implements Initializable {
         updateSessionWorkspaceSelection(threadsTab);
         updateSummaryModeForTab(threadsTab);
 
-        updateStatus("Ready. Open, drop, or paste a thread dump to begin. Start Session anchors the current dump for time-series review.");
+        updateStatus("Ready. Open, drop, or paste a thread dump to begin. The snapshot review rail on the right stays in sync.");
     }
 
     private void configureMetricFilters() {
@@ -270,14 +275,22 @@ public class MainController implements Initializable {
     }
 
     private void configureSessionSidebar() {
-        Label placeholder = new Label("Start a session to see loaded dumps here.");
+        Label placeholder = new Label("Open a dump to start building a snapshot review.");
         placeholder.getStyleClass().add("status-label");
         sessionSnapshotList.setPlaceholder(placeholder);
         sessionSnapshotList.setItems(sessionSnapshotItems);
         sessionSnapshotList.setCellFactory(list -> new ListCell<>() {
             {
                 setOnMouseClicked(event -> {
-                    if (event.getClickCount() == 2 && !isEmpty() && getIndex() > 0) {
+                    if (event.getClickCount() != 2 || isEmpty()) {
+                        return;
+                    }
+                    sessionSnapshotList.getSelectionModel().select(getIndex());
+                    if (multiDumpAnalysis == null) {
+                        onMakeSelectedBaseline();
+                        return;
+                    }
+                    if (getIndex() != multiDumpAnalysis.baselineIndex()) {
                         sessionSnapshotList.getSelectionModel().select(getIndex());
                         onUseSelectedSessionTarget();
                     }
@@ -310,13 +323,16 @@ public class MainController implements Initializable {
 
                 FlowPane badgeRow = new FlowPane(6, 6);
                 badgeRow.getStyleClass().add("session-badge-row");
-                if (snapshotIndex == 0) {
-                    badgeRow.getChildren().add(sessionBadge("Anchor", "session-badge-anchor"));
+                if (multiDumpAnalysis == null) {
+                    badgeRow.getChildren().add(sessionBadge("Current", "session-badge-current"));
+                } else if (snapshotIndex == multiDumpAnalysis.baselineIndex()) {
+                    badgeRow.getChildren().add(sessionBadge("Baseline", "session-badge-anchor"));
                 }
-                if (snapshotIndex == sessionTargetSnapshotIndex && snapshotIndex > 0) {
-                    badgeRow.getChildren().add(sessionBadge("Pair Diff", "session-badge-target"));
+                if (snapshotIndex == sessionTargetSnapshotIndex && multiDumpAnalysis != null
+                        && snapshotIndex != multiDumpAnalysis.baselineIndex()) {
+                    badgeRow.getChildren().add(sessionBadge("Compare", "session-badge-target"));
                 }
-                if (snapshotIndex == sessionSnapshotItems.size() - 1) {
+                if (multiDumpAnalysis != null && snapshotIndex == sessionSnapshotItems.size() - 1) {
                     badgeRow.getChildren().add(sessionBadge("Latest", "session-badge-latest"));
                 }
 
@@ -345,10 +361,12 @@ public class MainController implements Initializable {
             updateSessionSidebarControls();
             sessionSnapshotList.refresh();
         });
+        sessionMakeBaselineBtn.setDisable(true);
         sessionUseTargetBtn.setDisable(true);
         sessionRemoveBtn.setDisable(true);
-        sessionClearBtn.setDisable(true);
         sessionSelectionField.setText("");
+        sessionSidebarCollapseBtn.setTooltip(new Tooltip("Collapse snapshot review"));
+        sessionSidebarExpandBtn.setTooltip(new Tooltip("Expand snapshot review"));
         updateSessionSidebar();
     }
 
@@ -417,6 +435,16 @@ public class MainController implements Initializable {
             return;
         }
         contentTabs.getSelectionModel().select(dumpDiffTab);
+    }
+
+    @FXML
+    private void onCollapseSessionSidebar() {
+        setSessionSidebarCollapsed(true);
+    }
+
+    @FXML
+    private void onExpandSessionSidebar() {
+        setSessionSidebarCollapsed(false);
     }
 
     @FXML
@@ -512,6 +540,7 @@ public class MainController implements Initializable {
     private void analyzeCurrentDump() {
         if (rawDumpText == null || rawDumpText.isBlank()) return;
         String dumpText = rawDumpText;
+        String sourcePath = currentSourceFilePath;
 
         updateStatus("Analyzing...");
         compareDumpsBtn.setDisable(true);
@@ -525,27 +554,8 @@ public class MainController implements Initializable {
                         .toList();
 
                 Platform.runLater(() -> {
-                    currentDump = dump;
-                    updateSessionActionButton();
-                    threadTableController.setThreads(dump.threads());
-                    threadTableController.setIssueContext(deadlockAnalyzer.findDeadlockCycles(dump).stream()
-                            .flatMap(List::stream)
-                            .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new)));
-                    updateSummary(dump, reports);
-                    deadlockViewController.setReports(reports, dump);
-                    topFramesController.setFrames(topFramesAnalyzer.topFrames(dump, 100));
-                    threadPoolController.setPools(poolGrouper.group(dump));
-                    topFramesController.setOnFrameClicked(frameKey -> {
-                        clearSummarySelectionVisuals();
-                        threadTableController.filterByFrame(frameKey);
-                        if (frameKey != null) {
-                            contentTabs.getSelectionModel().select(threadsTab);
-                            updateStatus("Filtered to threads containing: " + frameKey + "  (double-click again to clear)");
-                        } else {
-                            updateStatus("Frame filter cleared.");
-                        }
-                    });
-                    updateStatus("Analysis complete. " + dump.threads().size() + " threads parsed.");
+                    applyCurrentDumpAnalysis(dump, dumpText, sourcePath, reports,
+                            "Analysis complete. " + dump.threads().size() + " threads parsed.");
                 });
             } catch (Exception e) {
                 Platform.runLater(() -> {
@@ -556,6 +566,39 @@ public class MainController implements Initializable {
         }, "jvm-doctor-analyzer");
         worker.setDaemon(true);
         worker.start();
+    }
+
+    private void applyCurrentDumpAnalysis(ThreadDump dump, String dumpText, String sourcePath,
+                                          List<AnalysisReport> reports, String statusMessage) {
+        currentDump = dump;
+        currentSourceFilePath = sourcePath;
+        applyRawDumpText(dumpText == null ? "" : dumpText);
+        if (sourcePath == null || sourcePath.isBlank()) {
+            clearLastSessionPath();
+        } else {
+            persistLastSessionPath(sourcePath);
+        }
+        updateSessionSidebar();
+        updateSessionActionButton();
+        threadTableController.setThreads(dump.threads());
+        threadTableController.setIssueContext(deadlockAnalyzer.findDeadlockCycles(dump).stream()
+                .flatMap(List::stream)
+                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new)));
+        updateSummary(dump, reports);
+        deadlockViewController.setReports(reports, dump);
+        topFramesController.setFrames(topFramesAnalyzer.topFrames(dump, 100));
+        threadPoolController.setPools(poolGrouper.group(dump));
+        topFramesController.setOnFrameClicked(frameKey -> {
+            clearSummarySelectionVisuals();
+            threadTableController.filterByFrame(frameKey);
+            if (frameKey != null) {
+                contentTabs.getSelectionModel().select(threadsTab);
+                updateStatus("Filtered to threads containing: " + frameKey + "  (double-click again to clear)");
+            } else {
+                updateStatus("Frame filter cleared.");
+            }
+        });
+        updateStatus(statusMessage);
     }
 
     private void updateSummary(ThreadDump dump, List<AnalysisReport> reports) {
@@ -603,40 +646,28 @@ public class MainController implements Initializable {
 
     private void updateSummaryModeForTab(Tab selectedTab) {
         boolean multiDumpMode = selectedTab == dumpDiffTab || selectedTab == timelineTab;
-        boolean showSessionWorkspace = currentDump != null || (multiDumpAnalysis != null && multiDumpAnalysis.snapshotCount() >= 2);
         singleDumpSummaryPane.setVisible(!multiDumpMode);
         singleDumpSummaryPane.setManaged(!multiDumpMode);
-        sessionWorkspaceBar.setVisible(showSessionWorkspace);
-        sessionWorkspaceBar.setManaged(showSessionWorkspace);
-        sessionSidebar.setVisible(multiDumpMode);
-        sessionSidebar.setManaged(multiDumpMode);
-        if (multiDumpMode) {
-            sessionSidebar.setMinWidth(240);
-            sessionSidebar.setPrefWidth(Math.max(260, sessionSidebar.getPrefWidth()));
-            sessionSidebar.setMaxWidth(Double.MAX_VALUE);
-            if (!workspaceSplit.getDividers().isEmpty()) {
-                workspaceSplit.setDividerPositions(workspaceDividerPosition);
-            }
-        } else {
-            sessionSidebar.setMinWidth(0);
-            sessionSidebar.setPrefWidth(0);
-            sessionSidebar.setMaxWidth(0);
-            if (!workspaceSplit.getDividers().isEmpty()) {
-                workspaceSplit.setDividerPositions(1.0);
-            }
+        boolean hasBaselineLabel = currentDump != null || hasMultiDumpReview();
+        baselineDumpLabel.setVisible(hasBaselineLabel);
+        baselineDumpLabel.setManaged(hasBaselineLabel);
+        if (hasBaselineLabel) {
+            baselineDumpLabel.setText(multiDumpAnalysis != null
+                    ? "Baseline #" + (multiDumpAnalysis.baselineIndex() + 1) + "  " + multiDumpAnalysis.baselineLabel()
+                    : "Current Dump  " + currentDumpLabel());
         }
-        updateSessionWorkspaceStatus();
+        setSessionSidebarCollapsed(sessionSidebarCollapsedState);
         updateSessionSidebarHint();
         updateSessionSidebarControls();
     }
 
     private TimelineSnapshot currentBaselineSnapshot() {
-        return new TimelineSnapshot(currentDumpLabel(), currentSourceFilePath, currentDump);
+        return new TimelineSnapshot(currentDumpLabel(), currentSourceFilePath, rawDumpText, currentDump);
     }
 
     private String currentDumpLabel() {
         if (currentSourceFilePath == null || currentSourceFilePath.isBlank()) {
-            return "Current Dump";
+            return currentDump != null ? "Pasted Dump" : "Current Dump";
         }
         try {
             return Path.of(currentSourceFilePath).getFileName().toString();
@@ -645,31 +676,79 @@ public class MainController implements Initializable {
         }
     }
 
+    private boolean hasMultiDumpReview() {
+        return multiDumpAnalysis != null && multiDumpAnalysis.snapshotCount() >= 2;
+    }
+
+    private void setSessionSidebarCollapsed(boolean collapsed) {
+        sessionSidebarCollapsedState = collapsed;
+        sessionSidebar.setVisible(!collapsed);
+        sessionSidebar.setManaged(!collapsed);
+        sessionSidebarCollapsed.setVisible(collapsed);
+        sessionSidebarCollapsed.setManaged(collapsed);
+        sessionSidebarHost.setMinWidth(collapsed ? 40 : 240);
+        sessionSidebarHost.setPrefWidth(collapsed ? 40 : Math.max(260, sessionSidebarHost.getPrefWidth()));
+        sessionSidebarHost.setMaxWidth(collapsed ? 40 : Double.MAX_VALUE);
+        sessionSidebar.setMinWidth(collapsed ? 0 : 240);
+        sessionSidebar.setPrefWidth(collapsed ? 0 : Math.max(260, sessionSidebar.getPrefWidth()));
+        sessionSidebar.setMaxWidth(collapsed ? 0 : Double.MAX_VALUE);
+        if (!workspaceSplit.getDividers().isEmpty()) {
+            workspaceSplit.setDividerPositions(collapsed ? 0.975 : workspaceDividerPosition);
+        }
+    }
+
+    private int effectiveBaselineIndex() {
+        if (multiDumpAnalysis != null) {
+            return multiDumpAnalysis.baselineIndex();
+        }
+        return currentDump != null && !sessionSnapshotItems.isEmpty() ? 0 : -1;
+    }
+
+    private int resolvePreferredTargetIndex(MultiDumpAnalysis analysis, int preferredTargetSnapshotIndex) {
+        if (analysis == null || analysis.snapshotCount() <= 1) {
+            return -1;
+        }
+        if (preferredTargetSnapshotIndex >= 0
+                && preferredTargetSnapshotIndex < analysis.snapshotCount()
+                && preferredTargetSnapshotIndex != analysis.baselineIndex()) {
+            return preferredTargetSnapshotIndex;
+        }
+        return analysis.defaultComparisonIndex();
+    }
+
     private void updateSessionSidebar() {
         if (multiDumpAnalysis == null) {
-            sessionSnapshotItems.setAll(List.of());
+            if (currentDump != null) {
+                sessionSnapshotItems.setAll(List.of(currentBaselineSnapshot()));
+                sessionSidebarStatusLabel.setText("Current dump ready");
+                sessionSelectionLabel.setText("Current Dump");
+                sessionSnapshotList.getSelectionModel().select(0);
+                sessionSnapshotList.scrollTo(0);
+            } else {
+                sessionSnapshotItems.setAll(List.of());
+                sessionSidebarStatusLabel.setText("No dump loaded yet.");
+                sessionSelectionLabel.setText("Selected Snapshot");
+                sessionSnapshotList.getSelectionModel().clearSelection();
+            }
             sessionTargetSnapshotIndex = -1;
-            sessionSidebarStatusLabel.setText("No session loaded.");
             updateSessionSidebarHint();
-            sessionSelectionLabel.setText("Selected Dump");
-            sessionSelectionField.clear();
-            sessionSnapshotList.getSelectionModel().clearSelection();
+            sessionSelectionField.setText(currentDump == null ? "" : snapshotSourceDescription(currentBaselineSnapshot()));
             updateSessionSidebarControls();
             return;
         }
 
         sessionSnapshotItems.setAll(multiDumpAnalysis.snapshots());
-        if (sessionTargetSnapshotIndex < 1 && sessionSnapshotItems.size() > 1) {
-            sessionTargetSnapshotIndex = sessionSnapshotItems.size() - 1;
+        int baselineIndex = multiDumpAnalysis.baselineIndex();
+        if (sessionTargetSnapshotIndex < 0 || sessionTargetSnapshotIndex == baselineIndex) {
+            sessionTargetSnapshotIndex = multiDumpAnalysis.defaultComparisonIndex();
         }
         sessionSidebarStatusLabel.setText(String.format(
-                "%d dump%s loaded  ·  anchor fixed to %s",
+                "%d snapshot%s loaded",
                 sessionSnapshotItems.size(),
-                sessionSnapshotItems.size() == 1 ? "" : "s",
-                multiDumpAnalysis.baselineLabel()));
+                sessionSnapshotItems.size() == 1 ? "" : "s"));
         updateSessionSidebarHint();
 
-        int selectionIndex = sessionTargetSnapshotIndex > 0 ? sessionTargetSnapshotIndex : 0;
+        int selectionIndex = sessionTargetSnapshotIndex >= 0 ? sessionTargetSnapshotIndex : baselineIndex;
         if (selectionIndex >= 0 && selectionIndex < sessionSnapshotItems.size()) {
             sessionSnapshotList.getSelectionModel().select(selectionIndex);
             sessionSnapshotList.scrollTo(selectionIndex);
@@ -680,58 +759,51 @@ public class MainController implements Initializable {
         updateSessionSidebarControls();
     }
 
-    private void updateSessionWorkspaceStatus() {
-        if (multiDumpAnalysis != null && multiDumpAnalysis.snapshotCount() >= 2) {
-            String modeLabel = contentTabs.getSelectionModel().getSelectedItem() == dumpDiffTab
-                    ? "Pair Diff is comparing the fixed anchor against a later dump."
-                    : contentTabs.getSelectionModel().getSelectedItem() == timelineTab
-                    ? "Session Timeline is tracking recurring threads across the loaded dumps."
-                    : "Session is ready. Switch into Timeline or Pair Diff when you need cross-dump review.";
-            sessionWorkspaceStatusLabel.setText(multiDumpAnalysis.snapshotCount()
-                    + " dumps loaded  ·  anchor: " + multiDumpAnalysis.baselineLabel()
-                    + "  ·  " + modeLabel);
-            return;
-        }
-        if (currentDump != null) {
-            sessionWorkspaceStatusLabel.setText("Current dump is ready to anchor a cross-dump session.");
-            return;
-        }
-        sessionWorkspaceStatusLabel.setText("Open and analyze a dump first to start a cross-dump session.");
-    }
-
     private void updateSessionSidebarHint() {
         if (multiDumpAnalysis == null) {
             sessionSidebarHintLabel.setText(currentDump == null
-                    ? "Open and analyze a dump first. Start Session uses that dump as the anchor."
-                    : "Start Session anchors the current dump. Add Dumps appends more snapshots here.");
+                    ? "Open and analyze a dump first. Snapshot review starts from the current dump."
+                    : "Add snapshots here to compare them against the current dump. The current dump becomes snapshot #1 automatically.");
             return;
         }
         sessionSidebarHintLabel.setText(contentTabs.getSelectionModel().getSelectedItem() == dumpDiffTab
-                ? "Source stays fixed on the anchor. Select any later dump here and use Pair Diff to inspect drift."
-                : "Session Timeline tracks every loaded dump. Double-click a later dump here to open it in Pair Diff.");
+                ? "Pick any non-baseline snapshot here to compare against the current baseline, or move the baseline if the anchor is wrong."
+                : contentTabs.getSelectionModel().getSelectedItem() == timelineTab
+                ? "Timeline shows the full review. Use the list below to move the baseline or jump into a comparison."
+                : "The list below keeps every loaded snapshot visible. Double-click a non-baseline snapshot to open Compare.");
     }
 
     private void updateSessionSidebarControls() {
         int selectedIndex = sessionSnapshotList.getSelectionModel().getSelectedIndex();
         TimelineSnapshot selectedSnapshot = sessionSnapshotList.getSelectionModel().getSelectedItem();
-        boolean hasSession = multiDumpAnalysis != null && !sessionSnapshotItems.isEmpty();
-        boolean canUseAsTarget = hasSession && selectedSnapshot != null && selectedIndex > 0;
+        boolean hasSession = hasMultiDumpReview();
+        int baselineIndex = effectiveBaselineIndex();
+        boolean alreadyBaseline = selectedSnapshot != null && selectedIndex == baselineIndex;
+        boolean canMakeBaseline = hasSession && selectedSnapshot != null && selectedIndex >= 0 && !alreadyBaseline;
+        boolean canUseAsTarget = hasSession && selectedSnapshot != null && selectedIndex >= 0 && selectedIndex != baselineIndex;
         boolean alreadyTarget = canUseAsTarget && selectedIndex == sessionTargetSnapshotIndex;
 
-        sessionUseTargetBtn.setText(alreadyTarget ? "Using In Pair Diff" : "Use In Pair Diff");
+        if (!hasSession) {
+            sessionMakeBaselineBtn.setText("Pending Baseline");
+        } else {
+            sessionMakeBaselineBtn.setText(alreadyBaseline ? "Baseline" : "Make Baseline");
+        }
+        sessionMakeBaselineBtn.setDisable(!canMakeBaseline);
+        sessionUseTargetBtn.setText(alreadyTarget ? "Already Comparing" : "Compare This Snapshot");
         sessionUseTargetBtn.setDisable(!canUseAsTarget || alreadyTarget);
-        sessionRemoveBtn.setDisable(!hasSession || selectedSnapshot == null || selectedIndex <= 0);
-        sessionClearBtn.setDisable(!hasSession);
+        sessionRemoveBtn.setDisable(!hasSession || selectedSnapshot == null || selectedIndex == baselineIndex);
 
         if (selectedSnapshot == null) {
-            sessionSelectionLabel.setText("Selected Dump");
+            sessionSelectionLabel.setText("Selected Snapshot");
             sessionSelectionField.clear();
             return;
         }
 
-        sessionSelectionLabel.setText(selectedIndex == 0
-                ? "Anchor Dump"
-                : selectedIndex == sessionTargetSnapshotIndex ? "Pair Diff Target" : "Selected Dump");
+        sessionSelectionLabel.setText(!hasSession
+                ? "Current Dump"
+                : selectedIndex == baselineIndex
+                ? "Baseline"
+                : selectedIndex == sessionTargetSnapshotIndex ? "Compare Target" : "Selected Snapshot");
         sessionSelectionField.setText(snapshotSourceDescription(selectedSnapshot));
     }
 
@@ -746,20 +818,72 @@ public class MainController implements Initializable {
     }
 
     @FXML
+    private void onMakeSelectedBaseline() {
+        int selectedIndex = sessionSnapshotList.getSelectionModel().getSelectedIndex();
+        if (selectedIndex < 0) {
+            return;
+        }
+        if (!hasMultiDumpReview()) {
+            onCompareDumps();
+            return;
+        }
+        if (selectedIndex == multiDumpAnalysis.baselineIndex()) {
+            return;
+        }
+
+        TimelineSnapshot selectedSnapshot = sessionSnapshotItems.get(selectedIndex);
+        int preferredTargetIndex = sessionTargetSnapshotIndex;
+        if (preferredTargetIndex == selectedIndex) {
+            preferredTargetIndex = -1;
+        }
+        int preferredTargetSnapshotIndex = preferredTargetIndex;
+        List<TimelineSnapshot> snapshots = new ArrayList<>(sessionSnapshotItems);
+
+        updateStatus("Re-anchoring snapshot review…");
+        compareDumpsBtn.setDisable(true);
+        Thread worker = new Thread(() -> {
+            try {
+                List<AnalysisReport> reports = analyzers.stream()
+                        .map(a -> a.analyze(selectedSnapshot.dump()))
+                        .toList();
+                MultiDumpAnalysis analysis = multiDumpAnalyzer.analyze(snapshots, selectedIndex);
+                int resolvedTargetIndex = resolvePreferredTargetIndex(analysis, preferredTargetSnapshotIndex);
+                Platform.runLater(() -> {
+                    applyMultiDumpAnalysis(analysis, resolvedTargetIndex);
+                    applyCurrentDumpAnalysis(
+                            selectedSnapshot.dump(),
+                            selectedSnapshot.rawText(),
+                            selectedSnapshot.sourcePath(),
+                            reports,
+                            "Baseline moved to " + selectedSnapshot.label() + ". Current dump switched to that snapshot.");
+                });
+            } catch (Exception e) {
+                Platform.runLater(() -> {
+                    updateSessionActionButton();
+                    showError(formatThrowableDetails("Snapshot re-anchor error", e));
+                });
+            }
+        }, "jvm-doctor-session-baseline");
+        worker.setDaemon(true);
+        worker.start();
+    }
+
+    @FXML
     private void onUseSelectedSessionTarget() {
         int selectedIndex = sessionSnapshotList.getSelectionModel().getSelectedIndex();
-        if (selectedIndex <= 0 || multiDumpAnalysis == null) {
+        if (multiDumpAnalysis == null || selectedIndex < 0 || selectedIndex == multiDumpAnalysis.baselineIndex()) {
             return;
         }
         dumpDiffController.selectTargetSnapshot(selectedIndex);
         contentTabs.getSelectionModel().select(dumpDiffTab);
-        updateStatus("Pair Diff target set to " + sessionSnapshotItems.get(selectedIndex).label() + ".");
+        updateStatus("Comparison target set to " + sessionSnapshotItems.get(selectedIndex).label() + ".");
     }
 
     @FXML
     private void onRemoveSelectedSessionSnapshot() {
         int selectedIndex = sessionSnapshotList.getSelectionModel().getSelectedIndex();
-        if (selectedIndex <= 0 || selectedIndex >= sessionSnapshotItems.size()) {
+        if (!hasMultiDumpReview() || selectedIndex < 0 || selectedIndex >= sessionSnapshotItems.size()
+                || selectedIndex == multiDumpAnalysis.baselineIndex()) {
             return;
         }
 
@@ -767,23 +891,27 @@ public class MainController implements Initializable {
         TimelineSnapshot removedSnapshot = remainingSnapshots.remove(selectedIndex);
         if (remainingSnapshots.size() < 2) {
             clearMultiDumpSession(false);
-            updateStatus("Removed " + removedSnapshot.label() + ". Session cleared because only the anchor remained.");
+            updateStatus("Removed " + removedSnapshot.label() + ". Snapshot review cleared because only one dump remained.");
             return;
         }
 
+        int baselineIndex = multiDumpAnalysis.baselineIndex();
+        if (selectedIndex < baselineIndex) {
+            baselineIndex -= 1;
+        }
         int preferredTargetIndex = sessionTargetSnapshotIndex;
         if (preferredTargetIndex == selectedIndex) {
-            preferredTargetIndex = Math.min(remainingSnapshots.size() - 1, selectedIndex);
+            preferredTargetIndex = multiDumpAnalysis.defaultComparisonIndex();
         } else if (selectedIndex < preferredTargetIndex) {
             preferredTargetIndex -= 1;
         }
-        preferredTargetIndex = Math.max(1, preferredTargetIndex);
 
         rebuildSessionFromSnapshots(
                 remainingSnapshots,
+                baselineIndex,
                 preferredTargetIndex,
-                "Refreshing session…",
-                "Removed " + removedSnapshot.label() + " from the session.");
+                "Refreshing snapshot review…",
+                "Removed " + removedSnapshot.label() + " from the snapshot review.");
     }
 
     @FXML
@@ -803,7 +931,7 @@ public class MainController implements Initializable {
             contentTabs.getSelectionModel().select(threadsTab);
         }
         if (announce) {
-            updateStatus("Session cleared.");
+            updateStatus("Snapshot review cleared.");
         }
     }
 
@@ -1168,16 +1296,16 @@ public class MainController implements Initializable {
 
     @FXML
     private void onCompareDumps() {
-        openMultiDumpChooser(multiDumpAnalysis != null && multiDumpAnalysis.snapshotCount() >= 2);
+        openMultiDumpChooser(hasMultiDumpReview());
     }
 
     private void openMultiDumpChooser(boolean appendToExisting) {
         if (currentDump == null) {
-            showError("Open and analyze a dump first. That dump becomes the session anchor.");
+            showError("Open and analyze a dump first. That dump becomes the baseline.");
             return;
         }
         FileChooser chooser = new FileChooser();
-        chooser.setTitle(appendToExisting ? "Add Dumps to Session" : "Start Session From Current Dump");
+        chooser.setTitle(appendToExisting ? "Add Snapshots To Review" : "Add Snapshots To Start Review");
         chooser.getExtensionFilters().addAll(
                 new FileChooser.ExtensionFilter("Text Files", "*.txt", "*.log", "*.dump"),
                 new FileChooser.ExtensionFilter("All Files", "*.*")
@@ -1189,13 +1317,14 @@ public class MainController implements Initializable {
         loadMultiDumpSession(files, appendToExisting);
     }
 
-    private void rebuildSessionFromSnapshots(List<TimelineSnapshot> snapshots, int preferredTargetSnapshotIndex,
+    private void rebuildSessionFromSnapshots(List<TimelineSnapshot> snapshots, int baselineSnapshotIndex,
+                                             int preferredTargetSnapshotIndex,
                                              String buildStatus, String readyStatus) {
         updateStatus(buildStatus);
         compareDumpsBtn.setDisable(true);
         Thread worker = new Thread(() -> {
             try {
-                MultiDumpAnalysis analysis = multiDumpAnalyzer.analyze(snapshots);
+                MultiDumpAnalysis analysis = multiDumpAnalyzer.analyze(snapshots, baselineSnapshotIndex);
                 Platform.runLater(() -> {
                     applyMultiDumpAnalysis(analysis, preferredTargetSnapshotIndex);
                     updateStatus(readyStatus);
@@ -1203,7 +1332,7 @@ public class MainController implements Initializable {
             } catch (Exception e) {
                 Platform.runLater(() -> {
                     updateSessionActionButton();
-                    showError(formatThrowableDetails("Session rebuild error", e));
+                    showError(formatThrowableDetails("Snapshot review rebuild error", e));
                 });
             }
         }, "jvm-doctor-session-refresh");
@@ -1213,9 +1342,7 @@ public class MainController implements Initializable {
 
     private void applyMultiDumpAnalysis(MultiDumpAnalysis analysis, int preferredTargetSnapshotIndex) {
         multiDumpAnalysis = analysis;
-        int resolvedTargetIndex = analysis.snapshotCount() <= 1
-                ? -1
-                : Math.max(1, Math.min(preferredTargetSnapshotIndex, analysis.snapshotCount() - 1));
+        int resolvedTargetIndex = resolvePreferredTargetIndex(analysis, preferredTargetSnapshotIndex);
         sessionTargetSnapshotIndex = resolvedTargetIndex;
         timelineController.setAnalysis(analysis);
         dumpDiffController.setAnalysis(analysis, resolvedTargetIndex);
@@ -1224,15 +1351,18 @@ public class MainController implements Initializable {
     }
 
     private void loadMultiDumpSession(List<File> files, boolean appendToExisting) {
-        updateStatus(appendToExisting ? "Adding dumps to session…" : "Building session timeline…");
+        updateStatus(appendToExisting ? "Adding snapshots to snapshot review…" : "Building snapshot review…");
         compareDumpsBtn.setDisable(true);
         Thread worker = new Thread(() -> {
             try {
                 List<TimelineSnapshot> snapshots = new ArrayList<>();
+                int baselineIndex;
                 if (appendToExisting && multiDumpAnalysis != null) {
                     snapshots.addAll(sessionSnapshotItems);
+                    baselineIndex = multiDumpAnalysis.baselineIndex();
                 } else {
                     snapshots.add(currentBaselineSnapshot());
+                    baselineIndex = 0;
                 }
 
                 Set<String> seenPaths = snapshots.stream()
@@ -1252,7 +1382,7 @@ public class MainController implements Initializable {
                     try {
                         String text = Files.readString(file.toPath());
                         ThreadDump dump = parser.parse(text);
-                        snapshots.add(new TimelineSnapshot(file.getName(), normalizedPath, dump));
+                        snapshots.add(new TimelineSnapshot(file.getName(), normalizedPath, text, dump));
                         seenPaths.add(normalizedPath);
                     } catch (Exception fileError) {
                         skipped.add(file.getName() + " (" + summarizeException(fileError) + ")");
@@ -1263,27 +1393,27 @@ public class MainController implements Initializable {
                     Platform.runLater(() -> {
                         updateSessionActionButton();
                         if (!skipped.isEmpty()) {
-                            showWarning("Could not load enough dumps:\n" + String.join("\n", skipped));
+                            showWarning("Could not load enough snapshots:\n" + String.join("\n", skipped));
                         }
-                        updateStatus("Need at least two distinct dumps to build a session.");
+                        updateStatus("Need at least two distinct dumps to build a snapshot review.");
                     });
                     return;
                 }
 
-                MultiDumpAnalysis analysis = multiDumpAnalyzer.analyze(snapshots);
+                MultiDumpAnalysis analysis = multiDumpAnalyzer.analyze(snapshots, baselineIndex);
                 Platform.runLater(() -> {
                     applyMultiDumpAnalysis(analysis, analysis.snapshotCount() - 1);
                     contentTabs.getSelectionModel().select(timelineTab);
-                    updateStatus("Session ready: " + analysis.snapshotCount() + " dumps loaded, "
-                            + analysis.suspiciousThreadCount() + " suspicious threads. The rail on the right shows the full stack.");
+                    updateStatus("Snapshot review ready: " + analysis.snapshotCount() + " snapshots loaded, "
+                            + analysis.suspiciousThreadCount() + " suspicious threads. The rail on the right shows the full review.");
                     if (!skipped.isEmpty()) {
-                        showWarning("Skipped some dumps:\n" + String.join("\n", skipped));
+                        showWarning("Skipped some snapshots:\n" + String.join("\n", skipped));
                     }
                 });
             } catch (Exception e) {
                 Platform.runLater(() -> {
                     updateSessionActionButton();
-                    showError(formatThrowableDetails("Session build error", e));
+                    showError(formatThrowableDetails("Snapshot review error", e));
                 });
             }
         }, "jvm-doctor-multi-dump");
@@ -1314,22 +1444,21 @@ public class MainController implements Initializable {
 
     private void updateSessionActionButton() {
         boolean hasAnchorDump = currentDump != null;
-        boolean hasSession = multiDumpAnalysis != null && multiDumpAnalysis.snapshotCount() >= 2;
+        boolean hasSession = hasMultiDumpReview();
         compareDumpsBtn.setDisable(!hasAnchorDump);
-        compareDumpsBtn.setText(hasSession ? "Add Dumps" : "Start Session");
+        compareDumpsBtn.setText("Add Snapshots");
         sessionTimelineNavBtn.setDisable(!hasSession);
         pairDiffNavBtn.setDisable(!hasSession);
         sessionClearWorkspaceBtn.setDisable(!hasSession);
         String tooltipText = hasSession
-                ? "Add more dumps to the current session (" + multiDumpAnalysis.snapshotCount() + " currently loaded)."
-                : "Start a session anchored to the current analyzed dump.";
+                ? "Add more snapshots to this review (" + multiDumpAnalysis.snapshotCount() + " currently loaded)."
+                : "Add later dumps here. The current analyzed dump becomes the baseline automatically.";
         Tooltip tooltip = compareDumpsBtn.getTooltip();
         if (tooltip == null) {
             compareDumpsBtn.setTooltip(new Tooltip(tooltipText));
         } else {
             tooltip.setText(tooltipText);
         }
-        updateSessionWorkspaceStatus();
         updateSummaryModeForTab(contentTabs == null ? null : contentTabs.getSelectionModel().getSelectedItem());
     }
 

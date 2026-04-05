@@ -40,91 +40,67 @@
             </VBox>
 
             <!-- RIGHT CONTENT -->
-            <VBox spacing="10">
+            <SplitPane fx:id="workspaceSplit" dividerPositions="0.78" styleClass="workspace-split">
+                <VBox spacing="10">
 
-                <SplitPane fx:id="singleDumpSummaryPane" dividerPositions="0.68" styleClass="summary-split">
+                    <SplitPane fx:id="singleDumpSummaryPane" dividerPositions="0.68" styleClass="summary-split">
 
-                        <VBox styleClass="chart-card summary-row" spacing="10">
-                            <padding><Insets top="10" right="12" bottom="10" left="12"/></padding>
-                            <Label text="Thread States" styleClass="card-title"/>
-                            <PieChart fx:id="stateChart" prefHeight="160"
-                                      animated="true" labelsVisible="true" legendVisible="false"
-                                      VBox.vgrow="ALWAYS"/>
-                            <FlowPane fx:id="stateLegend" hgap="8" vgap="8" prefWrapLength="440"
-                                      styleClass="state-legend"/>
-                        </VBox>
+                            <VBox styleClass="chart-card summary-row" spacing="10">
+                                <padding><Insets top="10" right="12" bottom="10" left="12"/></padding>
+                                <Label text="Thread States" styleClass="card-title"/>
+                                <PieChart fx:id="stateChart" prefHeight="160"
+                                          animated="true" labelsVisible="true" legendVisible="false"
+                                          VBox.vgrow="ALWAYS"/>
+                                <FlowPane fx:id="stateLegend" hgap="8" vgap="8" prefWrapLength="440"
+                                          styleClass="state-legend"/>
+                            </VBox>
 
-                        <VBox styleClass="metrics-card summary-row" spacing="10">
-                            <padding><Insets top="10" right="12" bottom="10" left="12"/></padding>
-                            <Label text="KEY METRICS" styleClass="card-title"/>
-                            <HBox VBox.vgrow="ALWAYS" alignment="CENTER" spacing="4" styleClass="metrics-row">
+                            <VBox styleClass="metrics-card summary-row" spacing="10">
+                                <padding><Insets top="10" right="12" bottom="10" left="12"/></padding>
+                                <Label text="KEY METRICS" styleClass="card-title"/>
+                                <HBox VBox.vgrow="ALWAYS" alignment="CENTER" spacing="4" styleClass="metrics-row">
 
-                                <VBox HBox.hgrow="ALWAYS" alignment="CENTER" spacing="4">
-                                    <Label fx:id="totalLabel" text="—" styleClass="metric-number"/>
-                                    <Label text="TOTAL" styleClass="metric-name"/>
-                                </VBox>
+                                    <VBox HBox.hgrow="ALWAYS" alignment="CENTER" spacing="4">
+                                        <Label fx:id="totalLabel" text="—" styleClass="metric-number"/>
+                                        <Label text="TOTAL" styleClass="metric-name"/>
+                                    </VBox>
 
-                                <Separator orientation="VERTICAL" styleClass="metrics-separator"/>
+                                    <Separator orientation="VERTICAL" styleClass="metrics-separator"/>
 
-                                <VBox HBox.hgrow="ALWAYS" alignment="CENTER" spacing="4">
-                                    <Label fx:id="criticalLabel" text="—" styleClass="metric-number, metric-number-critical"/>
-                                    <Label text="CRITICAL" styleClass="metric-name"/>
-                                </VBox>
+                                    <VBox HBox.hgrow="ALWAYS" alignment="CENTER" spacing="4">
+                                        <Label fx:id="criticalLabel" text="—" styleClass="metric-number, metric-number-critical"/>
+                                        <Label text="CRITICAL" styleClass="metric-name"/>
+                                    </VBox>
 
-                                <Separator orientation="VERTICAL" styleClass="metrics-separator"/>
+                                    <Separator orientation="VERTICAL" styleClass="metrics-separator"/>
 
-                                <VBox HBox.hgrow="ALWAYS" alignment="CENTER" spacing="4">
-                                    <Label fx:id="deadlockedLabel" text="—" styleClass="metric-number, metric-number-deadlocked"/>
-                                    <Label text="DEADLOCKED" styleClass="metric-name"/>
-                                </VBox>
+                                    <VBox HBox.hgrow="ALWAYS" alignment="CENTER" spacing="4">
+                                        <Label fx:id="deadlockedLabel" text="—" styleClass="metric-number, metric-number-deadlocked"/>
+                                        <Label text="DEADLOCKED" styleClass="metric-name"/>
+                                    </VBox>
 
-                                <Separator orientation="VERTICAL" styleClass="metrics-separator"/>
+                                    <Separator orientation="VERTICAL" styleClass="metrics-separator"/>
 
-                                <VBox HBox.hgrow="ALWAYS" alignment="CENTER" spacing="4">
-                                    <Label fx:id="hotLockLabel" text="—" styleClass="metric-number, metric-number-hot-lock"/>
-                                    <Label text="HOT LOCK" styleClass="metric-name"/>
-                                </VBox>
+                                    <VBox HBox.hgrow="ALWAYS" alignment="CENTER" spacing="4">
+                                        <Label fx:id="hotLockLabel" text="—" styleClass="metric-number, metric-number-hot-lock"/>
+                                        <Label text="HOT LOCK" styleClass="metric-name"/>
+                                    </VBox>
 
-                                <Separator orientation="VERTICAL" styleClass="metrics-separator"/>
+                                    <Separator orientation="VERTICAL" styleClass="metrics-separator"/>
 
-                                <VBox HBox.hgrow="ALWAYS" alignment="CENTER" spacing="4">
-                                    <Label fx:id="poolIssueLabel" text="—" styleClass="metric-number, metric-number-pool-issues"/>
-                                    <Label text="POOL ISSUES" styleClass="metric-name"/>
-                                </VBox>
+                                    <VBox HBox.hgrow="ALWAYS" alignment="CENTER" spacing="4">
+                                        <Label fx:id="poolIssueLabel" text="—" styleClass="metric-number, metric-number-pool-issues"/>
+                                        <Label text="POOL ISSUES" styleClass="metric-name"/>
+                                    </VBox>
 
-                            </HBox>
-                            <Label fx:id="summaryHintLabel" text="Load a dump to see issue hints." wrapText="true"
-                                   styleClass="status-label"/>
-                        </VBox>
+                                </HBox>
+                                <Label fx:id="summaryHintLabel" text="Load a dump to see issue hints." wrapText="true"
+                                       styleClass="status-label"/>
+                            </VBox>
 
-                </SplitPane>
+                    </SplitPane>
 
-                <HBox fx:id="sessionWorkspaceBar" spacing="12" alignment="CENTER_LEFT"
-                      styleClass="session-workspace-bar"
-                      visible="false" managed="false">
-                    <padding><Insets top="8" right="12" bottom="8" left="12"/></padding>
-                    <VBox spacing="3" HBox.hgrow="ALWAYS">
-                        <Label text="SESSION WORKSPACE" styleClass="session-workspace-title"/>
-                        <Label fx:id="sessionWorkspaceStatusLabel"
-                               text="Current dump is ready to anchor a cross-dump session."
-                               wrapText="true" styleClass="status-label"/>
-                    </VBox>
-                    <HBox spacing="8" alignment="CENTER_RIGHT" styleClass="session-workspace-actions">
-                        <Button fx:id="compareDumpsBtn" text="Start Session" onAction="#onCompareDumps"
-                                styleClass="toolbar-btn, session-workspace-primary"/>
-                        <ToggleButton fx:id="sessionTimelineNavBtn" text="Timeline" onAction="#onOpenTimelineTab"
-                                      styleClass="session-mode-btn"/>
-                        <ToggleButton fx:id="pairDiffNavBtn" text="Pair Diff" onAction="#onOpenDumpDiffTab"
-                                      styleClass="session-mode-btn"/>
-                        <Button fx:id="sessionClearWorkspaceBtn" text="Clear"
-                                onAction="#onClearSession"
-                                styleClass="toolbar-btn, toolbar-btn-subtle, compact-action-btn"/>
-                    </HBox>
-                </HBox>
-
-                <SplitPane fx:id="workspaceSplit" dividerPositions="0.78" styleClass="workspace-split" VBox.vgrow="ALWAYS">
-                    <!-- TAB CONTENT -->
-                    <TabPane fx:id="contentTabs" tabClosingPolicy="UNAVAILABLE" styleClass="content-tabs">
+                    <TabPane fx:id="contentTabs" tabClosingPolicy="UNAVAILABLE" styleClass="content-tabs" VBox.vgrow="ALWAYS">
 
                         <Tab fx:id="threadsTab" text="Threads">
                             <fx:include source="thread_table.fxml" fx:id="threadTable"/>
@@ -142,7 +118,7 @@
                             <fx:include source="thread_pool.fxml" fx:id="threadPool"/>
                         </Tab>
 
-                        <Tab fx:id="timelineTab" text="Session Timeline">
+                        <Tab fx:id="timelineTab" text="Dump Timeline">
                             <fx:include source="timeline.fxml" fx:id="timeline"/>
                         </Tab>
 
@@ -150,7 +126,6 @@
                             <fx:include source="dump_diff.fxml" fx:id="dumpDiff"/>
                         </Tab>
 
-                        <!-- Raw Dump 탭: 검색바 + TextArea -->
                         <Tab fx:id="rawTab" text="Raw Dump">
                             <VBox spacing="0">
                                 <HBox spacing="8" alignment="CENTER_LEFT" styleClass="raw-search-bar">
@@ -172,41 +147,79 @@
                         </Tab>
 
                     </TabPane>
+                </VBox>
 
+                <StackPane fx:id="sessionSidebarHost" minWidth="48" prefWidth="280">
                     <VBox fx:id="sessionSidebar" spacing="10" styleClass="session-sidebar"
                           minWidth="260" prefWidth="280"
-                          visible="false" managed="false">
+                          visible="true" managed="true">
                         <padding><Insets top="10" right="12" bottom="10" left="12"/></padding>
-                        <Label text="SESSION DUMPS" styleClass="section-label"/>
-                        <Label fx:id="sessionSidebarStatusLabel" text="No session loaded." styleClass="session-sidebar-status"/>
-                        <Label fx:id="sessionSidebarHintLabel"
-                               text="Start Session anchors the current dump. Add Dumps appends more snapshots here."
-                               wrapText="true" styleClass="status-label"/>
+                        <VBox spacing="8" styleClass="session-sidebar-summary">
+                            <HBox alignment="CENTER_LEFT" spacing="8">
+                                <VBox spacing="3" HBox.hgrow="ALWAYS">
+                                    <Label text="SNAPSHOT REVIEW" styleClass="section-label"/>
+                                    <Label fx:id="sessionSidebarStatusLabel" text="No dump loaded yet." styleClass="session-sidebar-status"/>
+                                </VBox>
+                                <Button fx:id="sessionSidebarCollapseBtn" text="&gt;"
+                                        onAction="#onCollapseSessionSidebar"
+                                        styleClass="session-sidebar-toggle-btn"/>
+                            </HBox>
+                            <Label fx:id="baselineDumpLabel" text="Current dump"
+                                   styleClass="session-anchor-pill"
+                                   visible="false" managed="false"/>
+                            <Label fx:id="sessionSidebarHintLabel"
+                                   text="Open and analyze a dump first. It will appear here and can become the baseline."
+                                   wrapText="true" styleClass="status-label"/>
+                            <HBox spacing="8" alignment="CENTER_LEFT">
+                                <Button fx:id="compareDumpsBtn" text="Add Snapshots"
+                                        onAction="#onCompareDumps"
+                                        styleClass="toolbar-btn, session-workspace-primary, compact-action-btn"
+                                        HBox.hgrow="ALWAYS"/>
+                                <Button fx:id="sessionClearWorkspaceBtn" text="Reset"
+                                        onAction="#onClearSession"
+                                        styleClass="toolbar-btn, toolbar-btn-subtle, compact-action-btn"/>
+                            </HBox>
+                            <HBox spacing="8" alignment="CENTER_LEFT">
+                                <ToggleButton fx:id="sessionTimelineNavBtn" text="Timeline" onAction="#onOpenTimelineTab"
+                                              styleClass="session-mode-btn" HBox.hgrow="ALWAYS"/>
+                                <ToggleButton fx:id="pairDiffNavBtn" text="Compare" onAction="#onOpenDumpDiffTab"
+                                              styleClass="session-mode-btn" HBox.hgrow="ALWAYS"/>
+                            </HBox>
+                        </VBox>
+
+                        <Separator/>
+                        <Label text="LOADED SNAPSHOTS" styleClass="section-label"/>
 
                         <ListView fx:id="sessionSnapshotList" VBox.vgrow="ALWAYS" styleClass="session-snapshot-list"/>
 
-                        <Label fx:id="sessionSelectionLabel" text="Selected Dump" styleClass="section-label"/>
+                        <Label fx:id="sessionSelectionLabel" text="Selected Snapshot" styleClass="section-label"/>
                         <TextField fx:id="sessionSelectionField"
-                                   promptText="Select a loaded dump to inspect its source."
+                                   promptText="Select a loaded snapshot to inspect its source."
                                    editable="false"
                                    styleClass="thread-readonly-field, session-selection-field"/>
 
                         <HBox spacing="8" alignment="CENTER_LEFT">
-                            <Button fx:id="sessionUseTargetBtn" text="Use In Pair Diff"
+                            <Button fx:id="sessionMakeBaselineBtn" text="Pending Baseline"
+                                    onAction="#onMakeSelectedBaseline"
+                                    styleClass="toolbar-btn, compact-action-btn"/>
+                            <Button fx:id="sessionUseTargetBtn" text="Compare This Snapshot"
                                     onAction="#onUseSelectedSessionTarget"
                                     styleClass="toolbar-btn, toolbar-btn-subtle, compact-action-btn"/>
                             <Button fx:id="sessionRemoveBtn" text="Remove"
                                     onAction="#onRemoveSelectedSessionSnapshot"
                                     styleClass="toolbar-btn, toolbar-btn-subtle, compact-action-btn"/>
                         </HBox>
-
-                        <Button fx:id="sessionClearBtn" text="Clear Session"
-                                onAction="#onClearSession"
-                                styleClass="toolbar-btn, toolbar-btn-subtle, compact-action-btn"/>
                     </VBox>
-                </SplitPane>
 
-            </VBox>
+                    <VBox fx:id="sessionSidebarCollapsed" alignment="TOP_CENTER" spacing="12"
+                          styleClass="session-sidebar-collapsed"
+                          visible="false" managed="false">
+                        <Button fx:id="sessionSidebarExpandBtn" text="&lt;"
+                                onAction="#onExpandSessionSidebar"
+                                styleClass="session-sidebar-toggle-btn"/>
+                    </VBox>
+                </StackPane>
+            </SplitPane>
 
         </SplitPane>
     </center>

@@ -57,6 +57,34 @@ public record DumpDiff(
                     || "TIMED_WAITING".equalsIgnoreCase(stateAfter));
         }
 
+        public boolean hasCpuDelta() {
+            return !Double.isNaN(cpuDeltaMillis());
+        }
+
+        public double cpuBeforeMillis() {
+            return threadBefore != null && threadBefore.hasCpuTime() ? threadBefore.cpuMillis() : Double.NaN;
+        }
+
+        public double cpuAfterMillis() {
+            return threadAfter != null && threadAfter.hasCpuTime() ? threadAfter.cpuMillis() : Double.NaN;
+        }
+
+        public double cpuDeltaMillis() {
+            if (threadBefore == null || threadAfter == null || !threadBefore.hasCpuTime() || !threadAfter.hasCpuTime()) {
+                return Double.NaN;
+            }
+            double delta = threadAfter.cpuMillis() - threadBefore.cpuMillis();
+            return delta >= 0 ? delta : Double.NaN;
+        }
+
+        public double intervalLoad(double intervalMillis) {
+            double cpuDelta = cpuDeltaMillis();
+            if (Double.isNaN(cpuDelta) || intervalMillis <= 0) {
+                return Double.NaN;
+            }
+            return cpuDelta / intervalMillis;
+        }
+
         public String signals() {
             StringBuilder sb = new StringBuilder();
             if (becameBlocked()) sb.append("NEW_BLOCKED");

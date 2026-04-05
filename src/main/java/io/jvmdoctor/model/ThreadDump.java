@@ -34,4 +34,12 @@ public record ThreadDump(
     public boolean hasVirtualThreads() {
         return threads.stream().anyMatch(ThreadInfo::isVirtual);
     }
+
+    public long cpuSampleCount() {
+        return threads.stream().filter(ThreadInfo::hasCpuTime).count();
+    }
+
+    public boolean hasCpuData() {
+        return threads.stream().anyMatch(ThreadInfo::hasCpuTime);
+    }
 }

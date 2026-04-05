@@ -10,6 +10,9 @@ public record ThreadInfo(
         boolean daemon,
         boolean virtual,
         String carrierThread,
+        String nativeThreadId,
+        double cpuMillis,
+        double elapsedSeconds,
         LockInfo waitingOnLock,
         List<LockInfo> heldLocks,
         List<StackFrame> stackFrames
@@ -19,7 +22,8 @@ public record ThreadInfo(
      */
     public ThreadInfo(String name, long threadId, String state, int priority, boolean daemon,
                       LockInfo waitingOnLock, List<LockInfo> heldLocks, List<StackFrame> stackFrames) {
-        this(name, threadId, state, priority, daemon, false, null, waitingOnLock, heldLocks, stackFrames);
+        this(name, threadId, state, priority, daemon, false, null, null, Double.NaN, Double.NaN,
+                waitingOnLock, heldLocks, stackFrames);
     }
 
     public int stackDepth() {
@@ -40,5 +44,31 @@ public record ThreadInfo(
 
     public boolean isPlatformThread() {
         return !virtual;
+    }
+
+    public boolean hasNativeThreadId() {
+        return nativeThreadId != null && !nativeThreadId.isBlank();
+    }
+
+    public boolean hasCpuTime() {
+        return !Double.isNaN(cpuMillis) && cpuMillis >= 0;
+    }
+
+    public boolean hasElapsedTime() {
+        return !Double.isNaN(elapsedSeconds) && elapsedSeconds >= 0;
+    }
+
+    public double cpuLoadRatio() {
+        if (!hasCpuTime() || !hasElapsedTime() || elapsedSeconds <= 0) {
+            return Double.NaN;
+        }
+        return cpuMillis / (elapsedSeconds * 1000.0);
+    }
+
+    public double cpuMillisPerSecond() {
+        if (!hasCpuTime() || !hasElapsedTime() || elapsedSeconds <= 0) {
+            return Double.NaN;
+        }
+        return cpuMillis / elapsedSeconds;
     }
 }

@@ -70,6 +70,20 @@ class JstackParserTest {
     }
 
     @Test
+    void parsesCpuElapsedAndNativeThreadId() {
+        ThreadDump dump = parser.parse(SAMPLE_DUMP);
+        ThreadInfo main = dump.threads().stream()
+                .filter(t -> t.name().equals("main"))
+                .findFirst().orElseThrow();
+        assertEquals("0x100", main.nativeThreadId());
+        assertEquals(120.5, main.cpuMillis(), 0.001);
+        assertEquals(3.5, main.elapsedSeconds(), 0.001);
+        assertTrue(main.hasCpuTime());
+        assertTrue(main.hasElapsedTime());
+        assertTrue(main.cpuLoadRatio() > 0);
+    }
+
+    @Test
     void stateDistributionIsCorrect() {
         ThreadDump dump = parser.parse(SAMPLE_DUMP);
         var dist = dump.stateDistribution();
@@ -115,11 +129,11 @@ class JstackParserTest {
             2024-06-01 10:00:00
             Full thread dump OpenJDK 64-Bit Server VM (21 mixed mode):
 
-            "main" #1 prio=5 os_prio=0 tid=0x00000001 nid=0x100 runnable
+            "main" #1 prio=5 os_prio=0 cpu=12.00ms elapsed=1.50s tid=0x00000001 nid=0x100 runnable
                java.lang.Thread.State: RUNNABLE
             \tat com.example.Main.main(Main.java:10)
 
-            "" #42 virtual
+            "" #42 virtual cpu=245.50ms elapsed=1.60s
                java.lang.Thread.State: WAITING (parking)
             \tat jdk.internal.misc.Unsafe.park(Native Method)
             \tat java.util.concurrent.locks.LockSupport.park(LockSupport.java:371)
@@ -131,16 +145,16 @@ class JstackParserTest {
             2024-01-01 12:00:00
             Full thread dump OpenJDK 64-Bit Server VM (21 mixed mode):
 
-            "main" #1 prio=5 os_prio=0 tid=0x00000001 nid=0x100 runnable
+            "main" #1 prio=5 os_prio=0 cpu=120.50ms elapsed=3.50s tid=0x00000001 nid=0x100 runnable
                java.lang.Thread.State: RUNNABLE
             \tat com.example.Main.main(Main.java:10)
 
-            "Thread-1" #2 prio=5 os_prio=0 tid=0x00000002 nid=0x101 waiting for monitor entry
+            "Thread-1" #2 prio=5 os_prio=0 cpu=1.25ms elapsed=3.40s tid=0x00000002 nid=0x101 waiting for monitor entry
                java.lang.Thread.State: BLOCKED (on object monitor)
             \tat com.example.Worker.run(Worker.java:55)
             \t- waiting to lock <0xabcdef01> (a java.lang.Object)
 
-            "Thread-2" #3 prio=5 os_prio=0 tid=0x00000003 nid=0x102 waiting on condition
+            "Thread-2" #3 prio=5 os_prio=0 cpu=55.00ms elapsed=8.00s tid=0x00000003 nid=0x102 waiting on condition
                java.lang.Thread.State: WAITING (parking)
             \tat java.lang.Object.wait(Native Method)
             \t- locked <0xabcdef01> (a java.lang.Object)

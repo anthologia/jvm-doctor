@@ -39,6 +39,10 @@ public class JstackParser {
     private static final Pattern CARRIER_LINE = Pattern.compile(
             "^\\s+\\^--.*@(\\S+)\\s*$");
 
+    private static final Pattern CPU_HEADER = Pattern.compile("\\bcpu=(\\d+(?:\\.\\d+)?)(ns|us|µs|ms|s|m|h)\\b");
+    private static final Pattern ELAPSED_HEADER = Pattern.compile("\\belapsed=(\\d+(?:\\.\\d+)?)(ns|us|µs|ms|s|m|h)\\b");
+    private static final Pattern NID_HEADER = Pattern.compile("\\bnid=(\\S+)\\b");
+
     // Timestamp: 2024-01-01 12:00:00
     private static final Pattern TIMESTAMP_LINE = Pattern.compile(
             "^(\\d{4}-\\d{2}-\\d{2}\\s+\\d{2}:\\d{2}:\\d{2})$");
@@ -111,6 +115,9 @@ public class JstackParser {
         boolean virtual = header.contains(" virtual");
         int priority = 5;
         long tid = -1;
+        String nativeThreadId = null;
+        double cpuMillis = Double.NaN;
+        double elapsedSeconds = Double.NaN;
 
         // Extract priority
         Matcher prioM = Pattern.compile("prio=(\\d+)").matcher(header);
@@ -119,6 +126,19 @@ public class JstackParser {
         // Extract tid
         Matcher tidM = Pattern.compile("#(\\d+)").matcher(header);
         if (tidM.find()) tid = Long.parseLong(tidM.group(1));
+
+        Matcher nidM = NID_HEADER.matcher(header);
+        if (nidM.find()) nativeThreadId = nidM.group(1);
+
+        Matcher cpuM = CPU_HEADER.matcher(header);
+        if (cpuM.find()) {
+            cpuMillis = parseDurationMillis(cpuM.group(1), cpuM.group(2));
+        }
+
+        Matcher elapsedM = ELAPSED_HEADER.matcher(header);
+        if (elapsedM.find()) {
+            elapsedSeconds = parseDurationMillis(elapsedM.group(1), elapsedM.group(2)) / 1000.0;
+        }
 
         String state = "UNKNOWN";
         LockInfo waitingOnLock = null;
@@ -168,6 +188,20 @@ public class JstackParser {
         }
 
         return new ThreadInfo(name, tid, state, priority, daemon, virtual, carrierThread,
+                nativeThreadId, cpuMillis, elapsedSeconds,
                 waitingOnLock, heldLocks, frames);
+    }
+
+    private double parseDurationMillis(String valueText, String unit) {
+        double value = Double.parseDouble(valueText);
+        return switch (unit) {
+            case "ns" -> value / 1_000_000.0;
+            case "us", "µs" -> value / 1_000.0;
+            case "ms" -> value;
+            case "s" -> value * 1_000.0;
+            case "m" -> value * 60_000.0;
+            case "h" -> value * 3_600_000.0;
+            default -> Double.NaN;
+        };
     }
 }

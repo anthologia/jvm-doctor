@@ -1,9 +1,11 @@
 package io.jvmdoctor.ui;
 
 import io.jvmdoctor.analyzer.ThreadPoolGrouper;
+import io.jvmdoctor.analyzer.ThreadRuntimeAnalyzer;
 import io.jvmdoctor.model.LockInfo;
 import io.jvmdoctor.model.StackFrame;
 import io.jvmdoctor.model.ThreadInfo;
+import javafx.beans.property.SimpleDoubleProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -26,6 +28,8 @@ import javafx.scene.control.Tooltip;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Region;
+import javafx.scene.control.SplitPane;
 import javafx.scene.layout.VBox;
 
 import java.net.URL;
@@ -51,12 +55,19 @@ public class ThreadTableController implements Initializable {
     @FXML private Label selectedThreadTitle;
     @FXML private TextField selectedThreadMeta;
     @FXML private HBox selectionActionBox;
+    @FXML private SplitPane threadContentSplit;
     @FXML private TableView<ThreadInfo> threadTable;
     @FXML private TableColumn<ThreadInfo, String> nameCol;
     @FXML private TableColumn<ThreadInfo, String> stateCol;
+    @FXML private TableColumn<ThreadInfo, Number> cpuCol;
+    @FXML private TableColumn<ThreadInfo, Number> ageCol;
+    @FXML private TableColumn<ThreadInfo, String> nidCol;
     @FXML private TableColumn<ThreadInfo, String> issuesCol;
     @FXML private TableColumn<ThreadInfo, String> contextCol;
     @FXML private TableColumn<ThreadInfo, String> topFrameCol;
+    @FXML private VBox detailSection;
+    @FXML private VBox detailBody;
+    @FXML private Button detailToggleBtn;
     @FXML private TextArea stackDetail;
 
     private final ObservableList<ThreadInfo> allThreads = FXCollections.observableArrayList();
@@ -80,6 +91,8 @@ public class ThreadTableController implements Initializable {
 
     private final ThreadPoolGrouper poolGrouper = new ThreadPoolGrouper();
     private boolean syncingStateControls = false;
+    private boolean detailCollapsed = false;
+    private double detailDividerPosition = 0.6;
 
     private static final List<String> PROBLEM_STATES = List.of("BLOCKED", "WAITING", "TIMED_WAITING");
     private static final Map<String, Integer> STATE_PRIORITY = Map.of(
@@ -93,17 +106,26 @@ public class ThreadTableController implements Initializable {
 
         nameCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().name()));
         stateCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().state()));
+        cpuCol.setCellValueFactory(c -> new SimpleDoubleProperty(c.getValue().hasCpuTime() ? c.getValue().cpuMillis() : -1));
+        ageCol.setCellValueFactory(c -> new SimpleDoubleProperty(c.getValue().hasElapsedTime() ? c.getValue().elapsedSeconds() : -1));
+        nidCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().nativeThreadId()));
         issuesCol.setCellValueFactory(c -> new SimpleStringProperty(buildSignals(c.getValue())));
         contextCol.setCellValueFactory(c -> new SimpleStringProperty(buildContextSummary(c.getValue())));
         topFrameCol.setCellValueFactory(c -> new SimpleStringProperty(topFrameLabel(c.getValue())));
 
         nameCol.setSortable(true);
         stateCol.setSortable(true);
+        cpuCol.setSortable(true);
+        ageCol.setSortable(true);
+        nidCol.setSortable(true);
         contextCol.setSortable(true);
         topFrameCol.setSortable(true);
         issuesCol.setSortable(true);
         nameCol.setResizable(true);
         stateCol.setResizable(true);
+        cpuCol.setResizable(true);
+        ageCol.setResizable(true);
+        nidCol.setResizable(true);
         contextCol.setResizable(true);
         topFrameCol.setResizable(true);
         issuesCol.setResizable(true);
@@ -112,6 +134,66 @@ public class ThreadTableController implements Initializable {
             int pa = STATE_PRIORITY.getOrDefault(a, 99);
             int pb = STATE_PRIORITY.getOrDefault(b, 99);
             return pa != pb ? Integer.compare(pa, pb) : a.compareTo(b);
+        });
+
+        cpuCol.setStyle("-fx-alignment: CENTER_RIGHT;");
+        cpuCol.setCellFactory(col -> new TableCell<>() {
+            @Override
+            protected void updateItem(Number value, boolean empty) {
+                super.updateItem(value, empty);
+                getStyleClass().removeAll("state-runnable", "state-blocked");
+                if (empty || value == null || value.doubleValue() < 0) {
+                    setText(null);
+                    setTooltip(null);
+                    return;
+                }
+                ThreadInfo thread = getTableRow() == null ? null : getTableRow().getItem();
+                setText(ThreadRuntimeAnalyzer.formatCpuMillis(value.doubleValue()));
+                if (thread != null) {
+                    String tooltip = "CPU: " + ThreadRuntimeAnalyzer.formatCpuMillis(thread.cpuMillis());
+                    double load = thread.cpuLoadRatio();
+                    if (!Double.isNaN(load)) {
+                        tooltip += "\nLoad: " + ThreadRuntimeAnalyzer.formatCpuLoad(load);
+                    }
+                    setTooltip(new Tooltip(tooltip));
+                    if (ThreadRuntimeAnalyzer.isSpinCandidate(thread)) {
+                        getStyleClass().add("state-blocked");
+                    } else if (ThreadRuntimeAnalyzer.isHotCpuThread(thread)) {
+                        getStyleClass().add("state-runnable");
+                    }
+                } else {
+                    setTooltip(null);
+                }
+            }
+        });
+
+        ageCol.setStyle("-fx-alignment: CENTER_RIGHT;");
+        ageCol.setCellFactory(col -> new TableCell<>() {
+            @Override
+            protected void updateItem(Number value, boolean empty) {
+                super.updateItem(value, empty);
+                if (empty || value == null || value.doubleValue() < 0) {
+                    setText(null);
+                    setTooltip(null);
+                    return;
+                }
+                setText(ThreadRuntimeAnalyzer.formatElapsedSeconds(value.doubleValue()));
+                setTooltip(new Tooltip("Elapsed: " + ThreadRuntimeAnalyzer.formatElapsedSeconds(value.doubleValue())));
+            }
+        });
+
+        nidCol.setCellFactory(col -> new TableCell<>() {
+            @Override
+            protected void updateItem(String value, boolean empty) {
+                super.updateItem(value, empty);
+                if (empty || value == null || value.isBlank()) {
+                    setText(null);
+                    setTooltip(null);
+                    return;
+                }
+                setText(value);
+                setTooltip(new Tooltip("Native thread id: " + value));
+            }
         });
 
         stateCol.setCellFactory(col -> new TableCell<>() {
@@ -242,6 +324,13 @@ public class ThreadTableController implements Initializable {
         sortedThreads = new SortedList<>(filteredThreads);
         sortedThreads.comparatorProperty().bind(threadTable.comparatorProperty());
         threadTable.setItems(sortedThreads);
+        if (!threadContentSplit.getDividers().isEmpty()) {
+            threadContentSplit.getDividers().get(0).positionProperty().addListener((obs, old, updated) -> {
+                if (!detailCollapsed && updated.doubleValue() > 0.2 && updated.doubleValue() < 0.95) {
+                    detailDividerPosition = updated.doubleValue();
+                }
+            });
+        }
         threadTable.setRowFactory(table -> {
             TableRow<ThreadInfo> row = new TableRow<>();
             row.addEventFilter(MouseEvent.MOUSE_PRESSED, event -> {
@@ -277,6 +366,9 @@ public class ThreadTableController implements Initializable {
         });
 
         threadTable.getSelectionModel().selectedItemProperty().addListener((obs, old, selected) -> {
+            if (selected != null && detailCollapsed) {
+                setDetailCollapsed(false);
+            }
             updateDetail(selected);
             updateActionButtons(selected);
         });
@@ -284,6 +376,7 @@ public class ThreadTableController implements Initializable {
         updateActionButtons(null);
         updateStats();
         updateScopeSummary();
+        setDetailCollapsed(false);
     }
 
     public void setThreads(List<ThreadInfo> threads) {
@@ -305,6 +398,11 @@ public class ThreadTableController implements Initializable {
         updateActionButtons(null);
         updateStats();
         updateScopeSummary();
+    }
+
+    @FXML
+    private void onToggleDetailSection() {
+        setDetailCollapsed(!detailCollapsed);
     }
 
     public void setIssueContext(Set<String> deadlockedThreadNames) {
@@ -553,6 +651,7 @@ public class ThreadTableController implements Initializable {
                     || t.name().toLowerCase().contains(lower)
                     || t.state().toLowerCase().contains(lower)
                     || String.valueOf(t.threadId()).contains(lower)
+                    || (t.nativeThreadId() != null && t.nativeThreadId().toLowerCase().contains(lower))
                     || buildSignals(t).toLowerCase().contains(lower)
                     || poolByThread.getOrDefault(t.name(), "").toLowerCase().contains(lower)
                     || topFrameLabel(t).toLowerCase().contains(lower)
@@ -583,9 +682,23 @@ public class ThreadTableController implements Initializable {
 
         StringBuilder sb = new StringBuilder();
         sb.append("\"").append(selected.name()).append("\"").append("\n");
-        sb.append("#").append(selected.threadId()).append("  ").append(selected.state());
+        sb.append("#").append(selected.threadId()).append("  ").append(ThreadStateLabels.display(selected.state()));
         if (selected.isVirtual()) sb.append("  [virtual]");
         sb.append("\n");
+        if (selected.hasNativeThreadId()) {
+            sb.append("NID: ").append(selected.nativeThreadId()).append("\n");
+        }
+        if (selected.hasCpuTime()) {
+            sb.append("CPU: ").append(ThreadRuntimeAnalyzer.formatCpuMillis(selected.cpuMillis()));
+            double cpuLoad = selected.cpuLoadRatio();
+            if (!Double.isNaN(cpuLoad)) {
+                sb.append("  (").append(ThreadRuntimeAnalyzer.formatCpuLoad(cpuLoad)).append(" load)");
+            }
+            sb.append("\n");
+        }
+        if (selected.hasElapsedTime()) {
+            sb.append("Elapsed: ").append(ThreadRuntimeAnalyzer.formatElapsedSeconds(selected.elapsedSeconds())).append("\n");
+        }
         if (selected.isVirtual() && selected.carrierThread() != null) {
             sb.append("Carrier: ").append(selected.carrierThread()).append("\n");
         }
@@ -636,6 +749,8 @@ public class ThreadTableController implements Initializable {
         selectionActionBox.setManaged(hasSelection);
         selectionIndicatorBox.setVisible(hasSelection);
         selectionIndicatorBox.setManaged(hasSelection);
+        detailToggleBtn.setVisible(hasSelection && !detailCollapsed);
+        detailToggleBtn.setManaged(hasSelection && !detailCollapsed);
         ownerBtn.setDisable(!hasSelection || selected.waitingOnLock() == null || lockOwnerById.get(selected.waitingOnLock().lockId()) == null);
         samePoolBtn.setDisable(!hasSelection || !hasDetectedPool(selected));
         sameFrameBtn.setDisable(!hasSelection || topFrameKey(selected) == null);
@@ -688,6 +803,23 @@ public class ThreadTableController implements Initializable {
         scopeSummaryBox.setManaged(hasScope);
         scopeLabel.setText(hasScope ? "Active filters: " + String.join("  •  ", scopes) : "");
         clearFiltersBtn.setDisable(!hasScope);
+    }
+
+    private void setDetailCollapsed(boolean collapsed) {
+        detailCollapsed = collapsed;
+        detailBody.setVisible(!collapsed);
+        detailBody.setManaged(!collapsed);
+        selectedThreadMeta.setVisible(!collapsed);
+        selectedThreadMeta.setManaged(!collapsed);
+        detailSection.setMinHeight(collapsed ? 38 : Region.USE_COMPUTED_SIZE);
+        detailSection.setPrefHeight(collapsed ? 38 : Region.USE_COMPUTED_SIZE);
+        detailSection.setMaxHeight(collapsed ? 38 : Double.MAX_VALUE);
+        detailToggleBtn.setText("-");
+        detailToggleBtn.setTooltip(new Tooltip("Hide thread details"));
+        if (!threadContentSplit.getDividers().isEmpty()) {
+            threadContentSplit.setDividerPositions(collapsed ? 0.965 : detailDividerPosition);
+        }
+        updateActionButtons(threadTable.getSelectionModel().getSelectedItem());
     }
 
     public void selectAndRevealThread(String threadName) {
@@ -753,7 +885,16 @@ public class ThreadTableController implements Initializable {
     private String buildSelectionMeta(ThreadInfo selected) {
         List<String> parts = new ArrayList<>();
         parts.add("#" + selected.threadId());
-        parts.add(selected.state());
+        parts.add(ThreadStateLabels.display(selected.state()));
+        if (selected.hasCpuTime()) {
+            parts.add(ThreadRuntimeAnalyzer.formatCpuMillis(selected.cpuMillis()));
+        }
+        if (selected.hasElapsedTime()) {
+            parts.add(ThreadRuntimeAnalyzer.formatElapsedSeconds(selected.elapsedSeconds()));
+        }
+        if (selected.hasNativeThreadId()) {
+            parts.add(selected.nativeThreadId());
+        }
 
         String pool = poolByThread.get(selected.name());
         if (pool != null && !pool.isBlank() && !pool.equals(selected.name())) {
@@ -831,6 +972,11 @@ public class ThreadTableController implements Initializable {
         List<String> signals = new ArrayList<>();
         if (deadlockedThreadNames.contains(thread.name())) {
             signals.add("DEADLOCK");
+        }
+        if (ThreadRuntimeAnalyzer.isSpinCandidate(thread)) {
+            signals.add("SPIN");
+        } else if (ThreadRuntimeAnalyzer.isHotCpuThread(thread)) {
+            signals.add("HOT_CPU");
         }
         if (thread.waitingOnLock() != null) {
             long waiters = waitersByLockId.getOrDefault(thread.waitingOnLock().lockId(), 0L);

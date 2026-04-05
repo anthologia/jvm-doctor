@@ -57,9 +57,8 @@ public class TimelineController implements Initializable {
     public void setAnalysis(MultiDumpAnalysis analysis) {
         this.analysis = analysis;
         sessionLabel.setText(String.format(
-                "Tracking %d loaded snapshots  ·  baseline #%d %s  ·  latest %s",
+                "Tracking %d loaded snapshots  ·  baseline %s  ·  latest %s",
                 analysis.snapshotCount(),
-                analysis.baselineIndex() + 1,
                 analysis.baselineLabel(),
                 analysis.latestLabel()));
         rebuildHeatmap();
@@ -112,8 +111,7 @@ public class TimelineController implements Initializable {
         heatmapGrid.add(headerLabel("Thread"), 2, 0);
         for (int index = 0; index < analysis.snapshotCount(); index++) {
             Label header = headerLabel("#" + (index + 1));
-            String headerTooltip = analysis.snapshots().get(index).label()
-                    + (index == analysis.baselineIndex() ? "\nBaseline snapshot" : "");
+            String headerTooltip = snapshotTooltip(index);
             Tooltip.install(header, new Tooltip(headerTooltip));
             heatmapGrid.add(header, index + 3, 0);
         }
@@ -142,7 +140,7 @@ public class TimelineController implements Initializable {
                 String state = series.stateAt(col);
                 Rectangle cell = makeCell(state);
                 String topFrame = series.topFrameAt(col);
-                String tooltip = analysis.snapshots().get(col).label()
+                String tooltip = snapshotTooltip(col)
                         + "\nState: " + (state == null ? "absent" : ThreadStateLabels.display(state))
                         + "\nTop frame: " + (topFrame == null || topFrame.isBlank() ? "—" : topFrame);
                 Tooltip.install(cell, new Tooltip(tooltip));
@@ -278,5 +276,21 @@ public class TimelineController implements Initializable {
                 flapping,
                 repeatBlocked,
                 persistent);
+    }
+
+    private String snapshotTooltip(int index) {
+        if (analysis == null || index < 0 || index >= analysis.snapshotCount()) {
+            return "Unknown snapshot";
+        }
+        var snapshot = analysis.snapshots().get(index);
+        StringBuilder tooltip = new StringBuilder();
+        tooltip.append("Snapshot ").append(index + 1).append(": ").append(snapshot.label() == null ? "Unnamed dump" : snapshot.label());
+        if (snapshot.sourcePath() != null && !snapshot.sourcePath().isBlank()) {
+            tooltip.append("\n").append(snapshot.sourcePath());
+        }
+        if (index == analysis.baselineIndex()) {
+            tooltip.append("\nBaseline snapshot");
+        }
+        return tooltip.toString();
     }
 }

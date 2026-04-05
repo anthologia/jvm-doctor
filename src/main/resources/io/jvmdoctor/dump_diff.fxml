@@ -43,6 +43,8 @@
                 <TableColumn fx:id="nameCol"   text="Thread Name" prefWidth="300" minWidth="150"/>
                 <TableColumn fx:id="transitionCol" text="Boundary" prefWidth="170" minWidth="120"/>
                 <TableColumn fx:id="signalsCol" text="Signals" prefWidth="220" minWidth="160"/>
+                <TableColumn fx:id="deltaCpuCol" text="ΔCPU" prefWidth="100" minWidth="80"/>
+                <TableColumn fx:id="loadCol" text="Load" prefWidth="90" minWidth="70"/>
                 <TableColumn fx:id="beforeCol" text="Seen" prefWidth="90" minWidth="70"/>
                 <TableColumn fx:id="afterCol"  text="Flips"  prefWidth="90" minWidth="70"/>
             </columns>

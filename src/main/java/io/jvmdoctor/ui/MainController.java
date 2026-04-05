@@ -23,6 +23,7 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.text.Text;
 import javafx.stage.Modality;
 import javafx.stage.FileChooser;
 
@@ -65,10 +66,15 @@ public class MainController implements Initializable {
     @FXML private ListView<String> navList;
 
     // --- Summary panel ---
+    @FXML private SplitPane contentAreaSplit;
+    @FXML private VBox summarySection;
     @FXML private SplitPane singleDumpSummaryPane;
+    @FXML private Label summarySectionHintLabel;
+    @FXML private Button summaryToggleBtn;
     @FXML private PieChart stateChart;
     @FXML private FlowPane stateLegend;
     @FXML private Label totalLabel;
+    @FXML private Label hotCpuLabel;
     @FXML private Label criticalLabel;
     @FXML private Label deadlockedLabel;
     @FXML private Label hotLockLabel;
@@ -126,12 +132,15 @@ public class MainController implements Initializable {
     private String activeMetricFilterKey;
     private Set<String> deadlockedThreadNames = Set.of();
     private Set<String> criticalThreadNames = Set.of();
+    private ThreadRuntimeAnalyzer.CpuFocus cpuHotFocus = ThreadRuntimeAnalyzer.CpuFocus.empty();
     private HotLockFocus hotLockFocus = HotLockFocus.empty();
     private PoolIssueFocus poolIssueFocus = PoolIssueFocus.empty();
     private MultiDumpAnalysis multiDumpAnalysis;
     private final ObservableList<TimelineSnapshot> sessionSnapshotItems = FXCollections.observableArrayList();
     private int sessionTargetSnapshotIndex = -1;
     private double workspaceDividerPosition = 0.78;
+    private double summarySectionDividerPosition = 0.30;
+    private boolean summarySectionCollapsed = false;
     private boolean sessionSidebarCollapsedState = false;
     private boolean snapshotReviewBusy = false;
     private String statusBeforeDrag;
@@ -211,8 +220,16 @@ public class MainController implements Initializable {
                 }
             });
         }
+        if (!contentAreaSplit.getDividers().isEmpty()) {
+            contentAreaSplit.getDividers().get(0).positionProperty().addListener((obs, old, updated) -> {
+                if (!summarySectionCollapsed && updated.doubleValue() > 0.05 && updated.doubleValue() < 0.95) {
+                    summarySectionDividerPosition = updated.doubleValue();
+                }
+            });
+        }
         contentTabs.getSelectionModel().select(threadsTab);
         navList.getSelectionModel().select("Threads");
+        setSummarySectionCollapsed(false);
         updateSummaryModeForTab(threadsTab);
 
         updateStatus("Ready. Open, drop, or paste a thread dump to begin. The snapshot review rail on the right stays in sync.");
@@ -223,6 +240,7 @@ public class MainController implements Initializable {
             clearSummaryThreadFilter();
             updateStatus("Showing all threads.");
         });
+        configureMetricLabel(hotCpuLabel, this::toggleHotCpuMetricFilter);
         configureMetricLabel(criticalLabel, () -> toggleMetricThreadFilter(
                 "critical",
                 criticalThreadNames,
@@ -413,6 +431,8 @@ public class MainController implements Initializable {
         if (rootPane.getScene() != null && rootPane.getScene().getWindow() != null) {
             alert.initOwner(rootPane.getScene().getWindow());
         }
+        alert.getDialogPane().setPrefWidth(820);
+        alert.getDialogPane().setMinHeight(220);
         styleDialog(alert);
         ButtonType result = alert.showAndWait().orElse(skipButton);
         if (result == reopenButton) {
@@ -511,9 +531,10 @@ public class MainController implements Initializable {
         deadlockedThreadNames = deadlockAnalyzer.findDeadlockCycles(dump).stream()
                 .flatMap(List::stream)
                 .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        cpuHotFocus = ThreadRuntimeAnalyzer.analyzeCpu(dump.threads());
         hotLockFocus = findHotLockFocus(dump);
         poolIssueFocus = findPoolIssueFocus(dump);
-        criticalThreadNames = findCriticalThreadNames(dump, deadlockedThreadNames, hotLockFocus, poolIssueFocus);
+        criticalThreadNames = findCriticalThreadNames(dump, deadlockedThreadNames, cpuHotFocus, hotLockFocus, poolIssueFocus);
 
         // Pie chart
         Map<String, Long> dist = dump.stateDistribution();
@@ -541,6 +562,7 @@ public class MainController implements Initializable {
 
         // Metrics
         totalLabel.setText(String.valueOf(dump.threads().size()));
+        hotCpuLabel.setText(String.valueOf(cpuHotFocus.hotThreadCount()));
         criticalLabel.setText(String.valueOf(criticalThreadNames.size()));
         deadlockedLabel.setText(String.valueOf(deadlockedThreadNames.size()));
         hotLockLabel.setText(String.valueOf(hotLockFocus.waiterCount()));
@@ -550,10 +572,53 @@ public class MainController implements Initializable {
 
     private void updateSummaryModeForTab(Tab selectedTab) {
         boolean multiDumpMode = selectedTab == dumpDiffTab || selectedTab == timelineTab;
-        singleDumpSummaryPane.setVisible(!multiDumpMode);
-        singleDumpSummaryPane.setManaged(!multiDumpMode);
+        if (multiDumpMode) {
+            ensureSummarySectionAttached(false);
+        } else {
+            ensureSummarySectionAttached(true);
+            setSummarySectionCollapsed(summarySectionCollapsed);
+        }
         setSessionSidebarCollapsed(sessionSidebarCollapsedState);
         refreshSnapshotReviewRail(selectedTab);
+    }
+
+    @FXML
+    private void onToggleSummarySection() {
+        setSummarySectionCollapsed(!summarySectionCollapsed);
+    }
+
+    private void setSummarySectionCollapsed(boolean collapsed) {
+        summarySectionCollapsed = collapsed;
+        summarySection.setVisible(true);
+        summarySection.setManaged(true);
+        singleDumpSummaryPane.setVisible(!collapsed);
+        singleDumpSummaryPane.setManaged(!collapsed);
+        singleDumpSummaryPane.setMinHeight(collapsed ? 0 : Region.USE_COMPUTED_SIZE);
+        singleDumpSummaryPane.setPrefHeight(collapsed ? 0 : Region.USE_COMPUTED_SIZE);
+        singleDumpSummaryPane.setMaxHeight(collapsed ? 0 : Double.MAX_VALUE);
+        summarySection.setMinHeight(collapsed ? 34 : Region.USE_COMPUTED_SIZE);
+        summarySection.setPrefHeight(collapsed ? 34 : Region.USE_COMPUTED_SIZE);
+        summarySection.setMaxHeight(collapsed ? 34 : Double.MAX_VALUE);
+        summaryToggleBtn.setText(collapsed ? "Show" : "Hide");
+        summarySectionHintLabel.setText(collapsed
+                ? "Overview hidden. Show it when you need state distribution or quick metrics again."
+                : "Thread States and Key Metrics. Drag below to resize this block when you need more room.");
+
+        if (!contentAreaSplit.getDividers().isEmpty()) {
+            contentAreaSplit.setDividerPositions(collapsed ? 0.035 : summarySectionDividerPosition);
+        }
+    }
+
+    private void ensureSummarySectionAttached(boolean attached) {
+        if (attached) {
+            if (!contentAreaSplit.getItems().contains(summarySection)) {
+                contentAreaSplit.getItems().add(0, summarySection);
+            }
+            summarySection.setVisible(true);
+            summarySection.setManaged(true);
+        } else {
+            contentAreaSplit.getItems().remove(summarySection);
+        }
     }
 
     private TimelineSnapshot currentBaselineSnapshot() {
@@ -866,6 +931,27 @@ public class MainController implements Initializable {
                 "Hot lock thread filter cleared.");
     }
 
+    private void toggleHotCpuMetricFilter() {
+        if (!cpuHotFocus.present()) {
+            updateStatus("No hot CPU threads detected from the current dump.");
+            return;
+        }
+        String detail = cpuHotFocus.hottestThreadName() == null
+                ? cpuHotFocus.hotThreadCount() + " hot CPU thread(s)"
+                : cpuHotFocus.hottestThreadName()
+                + " hottest CPU (" + ThreadRuntimeAnalyzer.formatCpuMillis(cpuHotFocus.hottestCpuMillis())
+                + ", " + ThreadRuntimeAnalyzer.formatCpuLoad(cpuHotFocus.hottestCpuRatio()) + " load)";
+        if (cpuHotFocus.spinCandidateCount() > 0) {
+            detail += "  ·  " + cpuHotFocus.spinCandidateCount() + " spin candidate(s)";
+        }
+        toggleMetricThreadFilter(
+                "hot-cpu",
+                cpuHotFocus.hotThreadNames(),
+                "No hot CPU threads detected from the current dump.",
+                "Filtered to hot CPU threads: " + detail + ".",
+                "Hot CPU thread filter cleared.");
+    }
+
     private void togglePoolIssueMetricFilter() {
         if (!poolIssueFocus.present()) {
             updateStatus("No unhealthy thread pools detected in the current dump.");
@@ -920,6 +1006,10 @@ public class MainController implements Initializable {
             slice.setStyle("-fx-pie-color: " + colorForState(extractStateName(data.getName())) + "; -fx-cursor: hand;");
         }
 
+        if (!bindStateChartLabels()) {
+            needsRetry = true;
+        }
+
         updateStateChartHighlight();
         if (needsRetry) {
             scheduleStateChartRefresh();
@@ -930,13 +1020,22 @@ public class MainController implements Initializable {
         if (stateChart.getData() == null) {
             return;
         }
+        Set<String> activeStates = activeStateFilters.isEmpty() ? null : Set.copyOf(activeStateFilters);
         stateChart.getData().forEach(data -> {
             if (data.getNode() == null) {
                 return;
             }
-            boolean active = activeStateFilters.isEmpty()
-                    || activeStateFilters.contains(extractStateName(data.getName()));
+            boolean active = activeStates == null
+                    || activeStates.contains(extractStateName(data.getName()));
             data.getNode().setOpacity(active ? 1.0 : 0.35);
+        });
+        stateChart.lookupAll(".chart-pie-label").forEach(node -> {
+            String labelText = chartLabelText(node);
+            if (labelText == null || labelText.isBlank()) {
+                return;
+            }
+            boolean active = activeStates == null || activeStates.contains(extractStateName(labelText));
+            node.setOpacity(active ? 1.0 : 0.45);
         });
     }
 
@@ -969,6 +1068,38 @@ public class MainController implements Initializable {
         return label.replaceFirst("\\s*\\(\\d+\\)$", "");
     }
 
+    private boolean bindStateChartLabels() {
+        Set<Node> labelNodes = stateChart.lookupAll(".chart-pie-label");
+        if (labelNodes.isEmpty()) {
+            return false;
+        }
+        labelNodes.forEach(node -> {
+            String labelText = chartLabelText(node);
+            if (labelText == null || labelText.isBlank()) {
+                return;
+            }
+            String state = extractStateName(labelText);
+            node.setStyle("-fx-cursor: hand;");
+            node.setMouseTransparent(false);
+            node.setOnMouseClicked(event -> toggleStateMetricFilter(Set.of(state),
+                    "Filtered by state: " + state + "  (click again to clear)"));
+            if (node instanceof Text text) {
+                text.setPickOnBounds(true);
+            }
+        });
+        return true;
+    }
+
+    private String chartLabelText(Node node) {
+        if (node instanceof Labeled labeled) {
+            return labeled.getText();
+        }
+        if (node instanceof Text text) {
+            return text.getText();
+        }
+        return null;
+    }
+
     private String buildSummaryHint(ThreadDump dump, List<AnalysisReport> reports) {
         long warningFindings = reports.stream()
                 .flatMap(r -> r.findings().stream())
@@ -981,6 +1112,9 @@ public class MainController implements Initializable {
         String hotspotPart = hotLockFocus.present()
                 ? hotLockFocus.lockLabel() + " hottest lock (" + hotLockFocus.waiterCount() + " waiter(s))"
                 : "No hot lock";
+        String cpuPart = cpuHotFocus.present()
+                ? cpuHotFocus.hottestThreadName() + " hottest CPU (" + ThreadRuntimeAnalyzer.formatCpuMillis(cpuHotFocus.hottestCpuMillis()) + ")"
+                : dump.hasCpuData() ? "CPU telemetry parsed" : "No CPU telemetry";
         String poolPart = poolIssueFocus.present()
                 ? poolIssueFocus.poolCount() + " unhealthy pool(s)"
                 : "No unhealthy pools";
@@ -990,7 +1124,7 @@ public class MainController implements Initializable {
                 : "";
 
         StringBuilder hint = new StringBuilder();
-        hint.append(criticalPart).append("  ·  ").append(poolPart).append("  ·  ").append(hotspotPart);
+        hint.append(criticalPart).append("  ·  ").append(cpuPart).append("  ·  ").append(poolPart).append("  ·  ").append(hotspotPart);
         if (warningFindings > 0) {
             hint.append("  ·  ").append(warningFindings).append(" warning(s)");
         }
@@ -1074,8 +1208,10 @@ public class MainController implements Initializable {
     }
 
     private Set<String> findCriticalThreadNames(ThreadDump dump, Set<String> deadlockedThreads,
+                                                ThreadRuntimeAnalyzer.CpuFocus cpuHotFocus,
                                                 HotLockFocus hotLockFocus, PoolIssueFocus poolIssueFocus) {
         Set<String> criticalThreads = new LinkedHashSet<>(deadlockedThreads);
+        criticalThreads.addAll(cpuHotFocus.spinCandidateNames());
         if (hotLockFocus.waiterCount() >= 5) {
             criticalThreads.addAll(hotLockFocus.affectedThreadNames());
         }

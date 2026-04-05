@@ -150,6 +150,26 @@
     -fx-padding: 0 1 0 1;
 }
 
+.content-area-split {
+    -fx-background-color: #1e1e2e;
+    -fx-padding: 0;
+}
+
+.content-area-split > .split-pane-divider {
+    -fx-background-color: #59627e;
+    -fx-border-color: #7b86a7;
+    -fx-border-width: 1 0 1 0;
+    -fx-padding: 3 0 3 0;
+}
+
+.summary-toolbar {
+    -fx-background-color: #181825;
+    -fx-background-radius: 8;
+    -fx-border-color: #313244;
+    -fx-border-radius: 8;
+    -fx-padding: 8 12 8 12;
+}
+
 .workspace-split {
     -fx-background-color: #1e1e2e;
     -fx-padding: 0;
@@ -241,6 +261,10 @@
 
 .metric-number-critical {
     -fx-text-fill: #c73a4f;
+}
+
+.metric-number-hot-cpu {
+    -fx-text-fill: #e49b4a;
 }
 
 .metric-number-deadlocked {
@@ -854,11 +878,22 @@
     -fx-background-color: #181825;
 }
 
+.threads-content-split > .split-pane-divider {
+    -fx-background-color: #454d66;
+    -fx-border-color: #6e7898;
+    -fx-border-width: 1 0 1 0;
+    -fx-padding: 2 0 2 0;
+}
+
 .thread-selection-header {
     -fx-background-color: #181825;
     -fx-border-color: #313244;
     -fx-border-width: 0 0 1 0;
     -fx-padding: 8 10 8 10;
+}
+
+.thread-detail-toggle-btn {
+    -fx-min-width: 54;
 }
 
 .thread-selection-title {

@@ -28,12 +28,16 @@
                 styleClass="toolbar-btn, toolbar-btn-subtle"/>
     </HBox>
 
-    <SplitPane orientation="VERTICAL" dividerPositions="0.6" VBox.vgrow="ALWAYS">
+    <SplitPane fx:id="threadContentSplit" orientation="VERTICAL" dividerPositions="0.6"
+               styleClass="threads-content-split" VBox.vgrow="ALWAYS">
 
         <TableView fx:id="threadTable" VBox.vgrow="ALWAYS">
             <columns>
                 <TableColumn fx:id="nameCol"      text="Thread"       prefWidth="280"/>
                 <TableColumn fx:id="stateCol"     text="State"        prefWidth="110"/>
+                <TableColumn fx:id="cpuCol"       text="CPU"          prefWidth="90"/>
+                <TableColumn fx:id="ageCol"       text="Age"          prefWidth="80"/>
+                <TableColumn fx:id="nidCol"       text="NID"          prefWidth="90"/>
                 <TableColumn fx:id="issuesCol"    text="Signals"      prefWidth="180"/>
                 <TableColumn fx:id="contextCol"   text="Context"      prefWidth="250"/>
                 <TableColumn fx:id="topFrameCol"  text="Top Frame"    prefWidth="320"/>
@@ -43,7 +47,7 @@
             </placeholder>
         </TableView>
 
-        <VBox spacing="6" styleClass="thread-detail-pane">
+        <VBox fx:id="detailSection" spacing="6" styleClass="thread-detail-pane">
             <HBox alignment="CENTER_LEFT" spacing="10" styleClass="thread-selection-header">
                 <VBox spacing="2" HBox.hgrow="ALWAYS">
                     <HBox spacing="8" alignment="CENTER_LEFT">
@@ -65,12 +69,16 @@
                     <Button fx:id="samePoolBtn" text="Pool" onAction="#onSamePool" styleClass="toolbar-btn, compact-action-btn"/>
                     <Button fx:id="sameFrameBtn" text="Frame" onAction="#onSameFrame" styleClass="toolbar-btn, compact-action-btn"/>
                     <Button fx:id="showRawBtn" text="Raw" onAction="#onShowRaw" styleClass="toolbar-btn, compact-action-btn"/>
+                    <Button fx:id="detailToggleBtn" text="-" onAction="#onToggleDetailSection"
+                            styleClass="toolbar-btn, toolbar-btn-subtle, compact-action-btn, thread-detail-toggle-btn"/>
                 </HBox>
             </HBox>
 
-            <TextArea fx:id="stackDetail" editable="false" wrapText="false" VBox.vgrow="ALWAYS"
-                      promptText="Select a thread to view its stack trace"
-                      style="-fx-font-family: monospace; -fx-font-size: 12px;"/>
+            <VBox fx:id="detailBody" spacing="6" VBox.vgrow="ALWAYS">
+                <TextArea fx:id="stackDetail" editable="false" wrapText="false" VBox.vgrow="ALWAYS"
+                          promptText="Select a thread to view its stack trace"
+                          style="-fx-font-family: monospace; -fx-font-size: 12px;"/>
+            </VBox>
         </VBox>
     </SplitPane>
 </VBox>

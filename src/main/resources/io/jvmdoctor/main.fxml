@@ -41,66 +41,84 @@
 
             <!-- RIGHT CONTENT -->
             <SplitPane fx:id="workspaceSplit" dividerPositions="0.78" styleClass="workspace-split">
-                <VBox spacing="10">
+                <SplitPane fx:id="contentAreaSplit" orientation="VERTICAL" dividerPositions="0.30" styleClass="content-area-split">
+                    <VBox fx:id="summarySection" spacing="8" minHeight="0.0">
+                        <HBox alignment="CENTER_LEFT" spacing="8" styleClass="summary-toolbar">
+                            <Label text="Overview" styleClass="card-title"/>
+                            <Label fx:id="summarySectionHintLabel"
+                                   text="Thread States and Key Metrics. Drag below to resize or hide when you want more room."
+                                   styleClass="status-label" HBox.hgrow="ALWAYS"/>
+                            <Button fx:id="summaryToggleBtn" text="Hide" onAction="#onToggleSummarySection"
+                                    styleClass="toolbar-btn, toolbar-btn-subtle, compact-action-btn"/>
+                        </HBox>
 
-                    <SplitPane fx:id="singleDumpSummaryPane" dividerPositions="0.68" styleClass="summary-split">
+                        <SplitPane fx:id="singleDumpSummaryPane" dividerPositions="0.68" styleClass="summary-split"
+                                   minHeight="0.0" VBox.vgrow="ALWAYS">
 
-                            <VBox styleClass="chart-card summary-row" spacing="10">
-                                <padding><Insets top="10" right="12" bottom="10" left="12"/></padding>
-                                <Label text="Thread States" styleClass="card-title"/>
-                                <PieChart fx:id="stateChart" prefHeight="160"
-                                          animated="true" labelsVisible="true" legendVisible="false"
-                                          VBox.vgrow="ALWAYS"/>
-                                <FlowPane fx:id="stateLegend" hgap="8" vgap="8" prefWrapLength="440"
-                                          styleClass="state-legend"/>
-                            </VBox>
+                                <VBox styleClass="chart-card summary-row" spacing="10" minWidth="0.0" minHeight="0.0">
+                                    <padding><Insets top="10" right="12" bottom="10" left="12"/></padding>
+                                    <Label text="Thread States" styleClass="card-title"/>
+                                    <PieChart fx:id="stateChart" prefHeight="180" minHeight="0.0"
+                                              animated="true" labelsVisible="true" legendVisible="false"
+                                              VBox.vgrow="ALWAYS"/>
+                                    <FlowPane fx:id="stateLegend" hgap="8" vgap="8" prefWrapLength="440"
+                                              styleClass="state-legend"/>
+                                </VBox>
 
-                            <VBox styleClass="metrics-card summary-row" spacing="10">
-                                <padding><Insets top="10" right="12" bottom="10" left="12"/></padding>
-                                <Label text="KEY METRICS" styleClass="card-title"/>
-                                <HBox VBox.vgrow="ALWAYS" alignment="CENTER" spacing="4" styleClass="metrics-row">
+                                <VBox styleClass="metrics-card summary-row" spacing="10" minWidth="0.0" minHeight="0.0">
+                                    <padding><Insets top="10" right="12" bottom="10" left="12"/></padding>
+                                    <Label text="KEY METRICS" styleClass="card-title"/>
+                                    <HBox VBox.vgrow="ALWAYS" alignment="CENTER" spacing="4" styleClass="metrics-row">
 
-                                    <VBox HBox.hgrow="ALWAYS" alignment="CENTER" spacing="4">
-                                        <Label fx:id="totalLabel" text="—" styleClass="metric-number"/>
-                                        <Label text="TOTAL" styleClass="metric-name"/>
-                                    </VBox>
+                                        <VBox HBox.hgrow="ALWAYS" alignment="CENTER" spacing="4">
+                                            <Label fx:id="totalLabel" text="—" styleClass="metric-number"/>
+                                            <Label text="TOTAL" styleClass="metric-name"/>
+                                        </VBox>
 
-                                    <Separator orientation="VERTICAL" styleClass="metrics-separator"/>
+                                        <Separator orientation="VERTICAL" styleClass="metrics-separator"/>
 
-                                    <VBox HBox.hgrow="ALWAYS" alignment="CENTER" spacing="4">
-                                        <Label fx:id="criticalLabel" text="—" styleClass="metric-number, metric-number-critical"/>
-                                        <Label text="CRITICAL" styleClass="metric-name"/>
-                                    </VBox>
+                                        <VBox HBox.hgrow="ALWAYS" alignment="CENTER" spacing="4">
+                                            <Label fx:id="hotCpuLabel" text="—" styleClass="metric-number, metric-number-hot-cpu"/>
+                                            <Label text="HOT CPU" styleClass="metric-name"/>
+                                        </VBox>
 
-                                    <Separator orientation="VERTICAL" styleClass="metrics-separator"/>
+                                        <Separator orientation="VERTICAL" styleClass="metrics-separator"/>
 
-                                    <VBox HBox.hgrow="ALWAYS" alignment="CENTER" spacing="4">
-                                        <Label fx:id="deadlockedLabel" text="—" styleClass="metric-number, metric-number-deadlocked"/>
-                                        <Label text="DEADLOCKED" styleClass="metric-name"/>
-                                    </VBox>
+                                        <VBox HBox.hgrow="ALWAYS" alignment="CENTER" spacing="4">
+                                            <Label fx:id="criticalLabel" text="—" styleClass="metric-number, metric-number-critical"/>
+                                            <Label text="CRITICAL" styleClass="metric-name"/>
+                                        </VBox>
 
-                                    <Separator orientation="VERTICAL" styleClass="metrics-separator"/>
+                                        <Separator orientation="VERTICAL" styleClass="metrics-separator"/>
 
-                                    <VBox HBox.hgrow="ALWAYS" alignment="CENTER" spacing="4">
-                                        <Label fx:id="hotLockLabel" text="—" styleClass="metric-number, metric-number-hot-lock"/>
-                                        <Label text="HOT LOCK" styleClass="metric-name"/>
-                                    </VBox>
+                                        <VBox HBox.hgrow="ALWAYS" alignment="CENTER" spacing="4">
+                                            <Label fx:id="deadlockedLabel" text="—" styleClass="metric-number, metric-number-deadlocked"/>
+                                            <Label text="DEADLOCKED" styleClass="metric-name"/>
+                                        </VBox>
 
-                                    <Separator orientation="VERTICAL" styleClass="metrics-separator"/>
+                                        <Separator orientation="VERTICAL" styleClass="metrics-separator"/>
 
-                                    <VBox HBox.hgrow="ALWAYS" alignment="CENTER" spacing="4">
-                                        <Label fx:id="poolIssueLabel" text="—" styleClass="metric-number, metric-number-pool-issues"/>
-                                        <Label text="POOL ISSUES" styleClass="metric-name"/>
-                                    </VBox>
+                                        <VBox HBox.hgrow="ALWAYS" alignment="CENTER" spacing="4">
+                                            <Label fx:id="hotLockLabel" text="—" styleClass="metric-number, metric-number-hot-lock"/>
+                                            <Label text="HOT LOCK" styleClass="metric-name"/>
+                                        </VBox>
 
-                                </HBox>
-                                <Label fx:id="summaryHintLabel" text="Load a dump to see issue hints." wrapText="true"
-                                       styleClass="status-label"/>
-                            </VBox>
+                                        <Separator orientation="VERTICAL" styleClass="metrics-separator"/>
 
-                    </SplitPane>
+                                        <VBox HBox.hgrow="ALWAYS" alignment="CENTER" spacing="4">
+                                            <Label fx:id="poolIssueLabel" text="—" styleClass="metric-number, metric-number-pool-issues"/>
+                                            <Label text="POOL ISSUES" styleClass="metric-name"/>
+                                        </VBox>
 
-                    <TabPane fx:id="contentTabs" tabClosingPolicy="UNAVAILABLE" styleClass="content-tabs" VBox.vgrow="ALWAYS">
+                                    </HBox>
+                                    <Label fx:id="summaryHintLabel" text="Load a dump to see issue hints." wrapText="true"
+                                           styleClass="status-label"/>
+                                </VBox>
+
+                        </SplitPane>
+                    </VBox>
+
+                    <TabPane fx:id="contentTabs" tabClosingPolicy="UNAVAILABLE" styleClass="content-tabs" VBox.vgrow="ALWAYS" minHeight="0.0">
 
                         <Tab fx:id="threadsTab" text="Threads">
                             <fx:include source="thread_table.fxml" fx:id="threadTable"/>
@@ -151,7 +169,7 @@
                         </Tab>
 
                     </TabPane>
-                </VBox>
+                </SplitPane>
 
                 <fx:include source="snapshot_review_sidebar.fxml" fx:id="snapshotReviewRail"/>
             </SplitPane>

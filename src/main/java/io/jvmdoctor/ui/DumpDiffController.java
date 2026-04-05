@@ -6,7 +6,9 @@ import io.jvmdoctor.analyzer.DumpDiff.ThreadDelta;
 import io.jvmdoctor.analyzer.DumpDiffer;
 import io.jvmdoctor.analyzer.MultiDumpAnalysis;
 import io.jvmdoctor.analyzer.MultiDumpAnalysis.ThreadSeries;
+import io.jvmdoctor.analyzer.ThreadRuntimeAnalyzer;
 import io.jvmdoctor.model.ThreadInfo;
+import javafx.beans.property.SimpleDoubleProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -18,6 +20,7 @@ import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
 
 import java.net.URL;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.ResourceBundle;
@@ -42,6 +45,8 @@ public class DumpDiffController implements Initializable {
     @FXML private TableColumn<ThreadDelta, String> nameCol;
     @FXML private TableColumn<ThreadDelta, String> transitionCol;
     @FXML private TableColumn<ThreadDelta, String> signalsCol;
+    @FXML private TableColumn<ThreadDelta, Number> deltaCpuCol;
+    @FXML private TableColumn<ThreadDelta, Number> loadCol;
     @FXML private TableColumn<ThreadDelta, String> beforeCol;
     @FXML private TableColumn<ThreadDelta, String> afterCol;
     @FXML private TextArea detailArea;
@@ -55,6 +60,7 @@ public class DumpDiffController implements Initializable {
     private List<Integer> targetSnapshotIndexes = List.of();
     private final DumpDiffer dumpDiffer = new DumpDiffer();
     private IntConsumer onTargetSnapshotChanged = ignored -> { };
+    private double pairIntervalMillis = Double.NaN;
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
@@ -82,21 +88,29 @@ public class DumpDiffController implements Initializable {
         nameCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().threadName()));
         transitionCol.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().transitionLabel()));
         signalsCol.setCellValueFactory(c -> new SimpleStringProperty(seriesSignals(c.getValue())));
+        deltaCpuCol.setCellValueFactory(c -> new SimpleDoubleProperty(cpuDeltaValue(c.getValue())));
+        loadCol.setCellValueFactory(c -> new SimpleDoubleProperty(intervalLoadValue(c.getValue())));
         beforeCol.setCellValueFactory(c -> new SimpleStringProperty(seenLabel(c.getValue())));
         afterCol.setCellValueFactory(c -> new SimpleStringProperty(flipLabel(c.getValue())));
         changeCol.setComparator((left, right) -> Integer.compare(changePriority(left), changePriority(right)));
+        deltaCpuCol.setComparator((left, right) -> Double.compare(left.doubleValue(), right.doubleValue()));
+        loadCol.setComparator((left, right) -> Double.compare(left.doubleValue(), right.doubleValue()));
         beforeCol.setComparator((left, right) -> Integer.compare(parseSeen(left), parseSeen(right)));
         afterCol.setComparator((left, right) -> Integer.compare(parseIntLabel(left), parseIntLabel(right)));
         changeCol.setResizable(true);
         nameCol.setResizable(true);
         transitionCol.setResizable(true);
         signalsCol.setResizable(true);
+        deltaCpuCol.setResizable(true);
+        loadCol.setResizable(true);
         beforeCol.setResizable(true);
         afterCol.setResizable(true);
         changeCol.setSortable(true);
         nameCol.setSortable(true);
         transitionCol.setSortable(true);
         signalsCol.setSortable(true);
+        deltaCpuCol.setSortable(true);
+        loadCol.setSortable(true);
         beforeCol.setSortable(true);
         afterCol.setSortable(true);
 
@@ -116,6 +130,65 @@ public class DumpDiffController implements Initializable {
                     getStyleClass().add("state-runnable");
                 } else if (item.contains("BLOCK_RESOLVED") || item.contains("PERSISTENT")) {
                     getStyleClass().add("state-waiting");
+                }
+            }
+        });
+        deltaCpuCol.setStyle("-fx-alignment: CENTER_RIGHT;");
+        deltaCpuCol.setCellFactory(col -> new TableCell<>() {
+            @Override
+            protected void updateItem(Number value, boolean empty) {
+                super.updateItem(value, empty);
+                getStyleClass().removeAll("state-runnable", "state-blocked");
+                if (empty || value == null || value.doubleValue() < 0) {
+                    setText(null);
+                    setTooltip(null);
+                    return;
+                }
+                ThreadDelta delta = getTableRow() == null ? null : getTableRow().getItem();
+                setText(ThreadRuntimeAnalyzer.formatCpuMillis(value.doubleValue()));
+                if (delta != null) {
+                    String tooltip = "ΔCPU: " + ThreadRuntimeAnalyzer.formatCpuMillis(value.doubleValue());
+                    double load = delta.intervalLoad(pairIntervalMillis);
+                    if (!Double.isNaN(load)) {
+                        tooltip += "\nInterval load: " + ThreadRuntimeAnalyzer.formatCpuLoad(load);
+                    }
+                    setTooltip(new Tooltip(tooltip));
+                    if (isSpinRise(delta)) {
+                        getStyleClass().add("state-blocked");
+                    } else if (isCpuSpike(delta)) {
+                        getStyleClass().add("state-runnable");
+                    }
+                } else {
+                    setTooltip(null);
+                }
+            }
+        });
+        loadCol.setStyle("-fx-alignment: CENTER_RIGHT;");
+        loadCol.setCellFactory(col -> new TableCell<>() {
+            @Override
+            protected void updateItem(Number value, boolean empty) {
+                super.updateItem(value, empty);
+                getStyleClass().removeAll("state-runnable", "state-blocked");
+                if (empty || value == null || value.doubleValue() < 0) {
+                    setText(null);
+                    setTooltip(null);
+                    return;
+                }
+                ThreadDelta delta = getTableRow() == null ? null : getTableRow().getItem();
+                setText(ThreadRuntimeAnalyzer.formatCpuLoad(value.doubleValue()));
+                if (delta != null) {
+                    String tooltip = "Interval load: " + ThreadRuntimeAnalyzer.formatCpuLoad(value.doubleValue());
+                    if (!Double.isNaN(pairIntervalMillis)) {
+                        tooltip += "\nWindow: " + formatInterval(pairIntervalMillis);
+                    }
+                    setTooltip(new Tooltip(tooltip));
+                    if (isSpinRise(delta)) {
+                        getStyleClass().add("state-blocked");
+                    } else if (isCpuSpike(delta)) {
+                        getStyleClass().add("state-runnable");
+                    }
+                } else {
+                    setTooltip(null);
                 }
             }
         });
@@ -141,8 +214,8 @@ public class DumpDiffController implements Initializable {
         sorted = new SortedList<>(filtered);
         sorted.comparatorProperty().bind(diffTable.comparatorProperty());
         diffTable.setItems(sorted);
-        afterCol.setSortType(TableColumn.SortType.DESCENDING);
-        diffTable.getSortOrder().setAll(afterCol);
+        deltaCpuCol.setSortType(TableColumn.SortType.DESCENDING);
+        diffTable.getSortOrder().setAll(deltaCpuCol, afterCol);
 
         showAdded.setSelected(true);
         showRemoved.setSelected(true);
@@ -213,6 +286,7 @@ public class DumpDiffController implements Initializable {
         seriesByThreadName = Map.of();
         snapshotCount = 0;
         targetSnapshotIndexes = List.of();
+        pairIntervalMillis = Double.NaN;
         anchorSnapshotLabel.setText("Baseline dump");
         toSnapshotBox.getItems().clear();
         toSnapshotBox.setDisable(true);
@@ -256,26 +330,37 @@ public class DumpDiffController implements Initializable {
         }
         int fromIndex = analysis.baselineIndex();
         int toIndex = targetSnapshotIndexes.get(targetSelectionIndex);
+        pairIntervalMillis = computeIntervalMillis(fromIndex, toIndex);
 
         DumpDiff diff = dumpDiffer.diff(
                 analysis.snapshots().get(fromIndex).dump(),
                 analysis.snapshots().get(toIndex).dump());
         allDeltas.setAll(diff.deltas());
         sessionLabel.setText(String.format(
-                "Baseline Comparison  ·  %s  vs  %s  ·  %d snapshots loaded",
+                "Baseline Comparison  ·  %s  vs  %s  ·  %s window  ·  %d snapshots loaded",
                 analysis.snapshots().get(fromIndex).label(),
                 analysis.snapshots().get(toIndex).label(),
+                formatInterval(pairIntervalMillis),
                 analysis.snapshotCount()));
         summaryLabel.setText(String.format(
-                "+%d added   -%d removed   ~%d changed   =%d same   !%d new blocked   ->%d resolved   !%d stuck",
+                "+%d added   -%d removed   ~%d changed   =%d same   !%d new blocked   ->%d resolved   !%d stuck   CPU spikes %d",
                 diff.addedCount(),
                 diff.removedCount(),
                 diff.changedCount(),
                 diff.unchangedCount(),
                 diff.newlyBlockedCount(),
                 diff.resolvedBlockedCount(),
-                diff.stuckCount()));
+                diff.stuckCount(),
+                diff.deltas().stream().filter(this::isCpuSpike).count()));
         applyFilter();
+        if (diff.deltas().stream().anyMatch(ThreadDelta::hasCpuDelta)) {
+            deltaCpuCol.setSortType(TableColumn.SortType.DESCENDING);
+            diffTable.getSortOrder().setAll(deltaCpuCol, loadCol, afterCol);
+        } else {
+            afterCol.setSortType(TableColumn.SortType.DESCENDING);
+            diffTable.getSortOrder().setAll(afterCol);
+        }
+        diffTable.refresh();
         diffTable.getSelectionModel().clearSelection();
         detailArea.clear();
         onTargetSnapshotChanged.accept(toIndex);
@@ -309,6 +394,8 @@ public class DumpDiffController implements Initializable {
                     || delta.threadName().toLowerCase().contains(text)
                     || delta.transitionLabel().toLowerCase().contains(text)
                     || seriesSignals(delta).toLowerCase().contains(text)
+                    || formatDeltaCpu(delta).toLowerCase().contains(text)
+                    || formatIntervalLoad(delta).toLowerCase().contains(text)
                     || delta.topFrameBefore().toLowerCase().contains(text)
                     || delta.topFrameAfter().toLowerCase().contains(text);
             return typeOk && textOk;
@@ -344,6 +431,20 @@ public class DumpDiffController implements Initializable {
         }
         if (delta.stateAfter() != null) {
             sb.append("After:  ").append(delta.stateAfter()).append("\n");
+        }
+        if (delta.threadBefore() != null && delta.threadBefore().hasCpuTime()) {
+            sb.append("CPU before: ").append(ThreadRuntimeAnalyzer.formatCpuMillis(delta.threadBefore().cpuMillis())).append("\n");
+        }
+        if (delta.threadAfter() != null && delta.threadAfter().hasCpuTime()) {
+            sb.append("CPU after:  ").append(ThreadRuntimeAnalyzer.formatCpuMillis(delta.threadAfter().cpuMillis())).append("\n");
+        }
+        if (delta.hasCpuDelta()) {
+            sb.append("ΔCPU: ").append(ThreadRuntimeAnalyzer.formatCpuMillis(delta.cpuDeltaMillis())).append("\n");
+            sb.append("Interval load: ").append(ThreadRuntimeAnalyzer.formatCpuLoad(delta.intervalLoad(pairIntervalMillis)));
+            if (!Double.isNaN(pairIntervalMillis)) {
+                sb.append(" over ").append(formatInterval(pairIntervalMillis));
+            }
+            sb.append("\n");
         }
         if (series != null) {
             sb.append("Seen: ").append(series.seenLabel(snapshotCount)).append("\n");
@@ -401,20 +502,12 @@ public class DumpDiffController implements Initializable {
 
     private String seriesSignals(ThreadDelta delta) {
         ThreadSeries series = seriesByThreadName.get(delta.threadName());
+        String cpuSignals = cpuSignals(delta);
         if (series == null) {
-            return delta.signals();
+            return joinSignals(delta.signals(), cpuSignals);
         }
         String seriesSignals = series.signalLabel();
-        if (seriesSignals.isBlank()) {
-            return delta.signals();
-        }
-        if (delta.signals().isBlank()) {
-            return seriesSignals;
-        }
-        if (seriesSignals.contains(delta.signals())) {
-            return seriesSignals;
-        }
-        return seriesSignals + " · " + delta.signals();
+        return joinSignals(joinSignals(seriesSignals, delta.signals()), cpuSignals);
     }
 
     private int parseSeen(String text) {
@@ -448,5 +541,94 @@ public class DumpDiffController implements Initializable {
             case "= SAME" -> 3;
             default -> 99;
         };
+    }
+
+    private double computeIntervalMillis(int fromIndex, int toIndex) {
+        if (analysis == null || fromIndex < 0 || toIndex < 0
+                || fromIndex >= analysis.snapshotCount() || toIndex >= analysis.snapshotCount()) {
+            return Double.NaN;
+        }
+        try {
+            long millis = Math.abs(Duration.between(
+                    analysis.snapshots().get(fromIndex).dump().timestamp(),
+                    analysis.snapshots().get(toIndex).dump().timestamp()).toMillis());
+            return millis > 0 ? millis : Double.NaN;
+        } catch (Exception ignored) {
+            return Double.NaN;
+        }
+    }
+
+    private double cpuDeltaValue(ThreadDelta delta) {
+        double value = delta == null ? Double.NaN : delta.cpuDeltaMillis();
+        return Double.isNaN(value) ? -1.0 : value;
+    }
+
+    private double intervalLoadValue(ThreadDelta delta) {
+        double value = delta == null ? Double.NaN : delta.intervalLoad(pairIntervalMillis);
+        return Double.isNaN(value) ? -1.0 : value;
+    }
+
+    private String formatDeltaCpu(ThreadDelta delta) {
+        return delta == null ? "—" : ThreadRuntimeAnalyzer.formatCpuMillis(delta.cpuDeltaMillis());
+    }
+
+    private String formatIntervalLoad(ThreadDelta delta) {
+        return delta == null ? "—" : ThreadRuntimeAnalyzer.formatCpuLoad(delta.intervalLoad(pairIntervalMillis));
+    }
+
+    private String formatInterval(double intervalMillis) {
+        if (Double.isNaN(intervalMillis) || intervalMillis <= 0) {
+            return "unknown interval";
+        }
+        return ThreadRuntimeAnalyzer.formatElapsedSeconds(intervalMillis / 1000.0);
+    }
+
+    private boolean isCpuSpike(ThreadDelta delta) {
+        if (delta == null || !delta.hasCpuDelta()) {
+            return false;
+        }
+        double load = delta.intervalLoad(pairIntervalMillis);
+        return (!Double.isNaN(load) && load >= 0.50 && delta.cpuDeltaMillis() >= 100.0)
+                || delta.cpuDeltaMillis() >= 2_000.0;
+    }
+
+    private boolean isSpinRise(ThreadDelta delta) {
+        if (delta == null || !isCpuSpike(delta)) {
+            return false;
+        }
+        if (!"RUNNABLE".equalsIgnoreCase(delta.stateBefore()) || !"RUNNABLE".equalsIgnoreCase(delta.stateAfter())) {
+            return false;
+        }
+        String before = delta.topFrameBefore();
+        String after = delta.topFrameAfter();
+        double load = delta.intervalLoad(pairIntervalMillis);
+        return before != null && !before.isBlank() && before.equals(after)
+                && !Double.isNaN(load) && load >= 0.70;
+    }
+
+    private String cpuSignals(ThreadDelta delta) {
+        if (delta == null) {
+            return "";
+        }
+        if (isSpinRise(delta)) {
+            return "SPIN_RISE";
+        }
+        if (isCpuSpike(delta)) {
+            return "CPU_SPIKE";
+        }
+        return "";
+    }
+
+    private String joinSignals(String left, String right) {
+        if (left == null || left.isBlank()) {
+            return right == null ? "" : right;
+        }
+        if (right == null || right.isBlank()) {
+            return left;
+        }
+        if (left.contains(right)) {
+            return left;
+        }
+        return left + " · " + right;
     }
 }

@@ -27,10 +27,15 @@ public class JvmDoctorApp extends Application {
         primaryStage.setScene(scene);
         primaryStage.setMinWidth(800);
         primaryStage.setMinHeight(550);
+        primaryStage.setMaximized(true);
         boolean launchedWithFile = openLaunchFile(controller);
         installOpenFileHandler(controller);
         scheduleSessionRestore(primaryStage, controller, launchedWithFile);
         primaryStage.show();
+        Platform.runLater(() -> {
+            primaryStage.toFront();
+            primaryStage.requestFocus();
+        });
     }
 
     public static void main(String[] args) {

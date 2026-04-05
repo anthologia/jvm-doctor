@@ -4,3 +4,6 @@ build/
 *.jar
 !gradle/wrapper/gradle-wrapper.jar
 /.claude/
+.DS_Store
+.ai/
+tmp/

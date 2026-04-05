@@ -1,0 +1,16 @@
+2024-01-01 12:00:10
+Full thread dump OpenJDK 64-Bit Server VM (21 mixed mode):
+
+"http-nio-8080-exec-1" #11 prio=5 os_prio=0 tid=0x00000011 nid=0x111 waiting for monitor entry
+   java.lang.Thread.State: BLOCKED (on object monitor)
+\tat com.example.api.RequestHandler.handle(RequestHandler.java:42)
+\t- waiting to lock <0xabcdef77> (a java.lang.Object)
+
+"worker-1" #12 prio=5 os_prio=0 tid=0x00000012 nid=0x112 waiting on condition
+   java.lang.Thread.State: WAITING (parking)
+\tat java.util.concurrent.locks.LockSupport.park(LockSupport.java:211)
+\tat com.example.jobs.Dispatcher.await(Dispatcher.java:28)
+
+"pool-1-thread-1" #13 prio=5 os_prio=0 tid=0x00000013 nid=0x113 runnable
+   java.lang.Thread.State: RUNNABLE
+\tat com.example.jobs.DelayQueue.take(DelayQueue.java:12)

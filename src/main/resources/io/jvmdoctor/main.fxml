@@ -149,76 +149,7 @@
                     </TabPane>
                 </VBox>
 
-                <StackPane fx:id="sessionSidebarHost" minWidth="48" prefWidth="280">
-                    <VBox fx:id="sessionSidebar" spacing="10" styleClass="session-sidebar"
-                          minWidth="260" prefWidth="280"
-                          visible="true" managed="true">
-                        <padding><Insets top="10" right="12" bottom="10" left="12"/></padding>
-                        <VBox spacing="8" styleClass="session-sidebar-summary">
-                            <HBox alignment="CENTER_LEFT" spacing="8">
-                                <VBox spacing="3" HBox.hgrow="ALWAYS">
-                                    <Label text="SNAPSHOT REVIEW" styleClass="section-label"/>
-                                    <Label fx:id="sessionSidebarStatusLabel" text="No dump loaded yet." styleClass="session-sidebar-status"/>
-                                </VBox>
-                                <Button fx:id="sessionSidebarCollapseBtn" text="&gt;"
-                                        onAction="#onCollapseSessionSidebar"
-                                        styleClass="session-sidebar-toggle-btn"/>
-                            </HBox>
-                            <Label fx:id="baselineDumpLabel" text="Current dump"
-                                   styleClass="session-anchor-pill"
-                                   visible="false" managed="false"/>
-                            <Label fx:id="sessionSidebarHintLabel"
-                                   text="Open and analyze a dump first. It will appear here and can become the baseline."
-                                   wrapText="true" styleClass="status-label"/>
-                            <HBox spacing="8" alignment="CENTER_LEFT">
-                                <Button fx:id="compareDumpsBtn" text="Add Snapshots"
-                                        onAction="#onCompareDumps"
-                                        styleClass="toolbar-btn, session-workspace-primary, compact-action-btn"
-                                        HBox.hgrow="ALWAYS"/>
-                                <Button fx:id="sessionClearWorkspaceBtn" text="Reset"
-                                        onAction="#onClearSession"
-                                        styleClass="toolbar-btn, toolbar-btn-subtle, compact-action-btn"/>
-                            </HBox>
-                            <HBox spacing="8" alignment="CENTER_LEFT">
-                                <ToggleButton fx:id="sessionTimelineNavBtn" text="Timeline" onAction="#onOpenTimelineTab"
-                                              styleClass="session-mode-btn" HBox.hgrow="ALWAYS"/>
-                                <ToggleButton fx:id="pairDiffNavBtn" text="Compare" onAction="#onOpenDumpDiffTab"
-                                              styleClass="session-mode-btn" HBox.hgrow="ALWAYS"/>
-                            </HBox>
-                        </VBox>
-
-                        <Separator/>
-                        <Label text="LOADED SNAPSHOTS" styleClass="section-label"/>
-
-                        <ListView fx:id="sessionSnapshotList" VBox.vgrow="ALWAYS" styleClass="session-snapshot-list"/>
-
-                        <Label fx:id="sessionSelectionLabel" text="Selected Snapshot" styleClass="section-label"/>
-                        <TextField fx:id="sessionSelectionField"
-                                   promptText="Select a loaded snapshot to inspect its source."
-                                   editable="false"
-                                   styleClass="thread-readonly-field, session-selection-field"/>
-
-                        <HBox spacing="8" alignment="CENTER_LEFT">
-                            <Button fx:id="sessionMakeBaselineBtn" text="Pending Baseline"
-                                    onAction="#onMakeSelectedBaseline"
-                                    styleClass="toolbar-btn, compact-action-btn"/>
-                            <Button fx:id="sessionUseTargetBtn" text="Compare This Snapshot"
-                                    onAction="#onUseSelectedSessionTarget"
-                                    styleClass="toolbar-btn, toolbar-btn-subtle, compact-action-btn"/>
-                            <Button fx:id="sessionRemoveBtn" text="Remove"
-                                    onAction="#onRemoveSelectedSessionSnapshot"
-                                    styleClass="toolbar-btn, toolbar-btn-subtle, compact-action-btn"/>
-                        </HBox>
-                    </VBox>
-
-                    <VBox fx:id="sessionSidebarCollapsed" alignment="TOP_CENTER" spacing="12"
-                          styleClass="session-sidebar-collapsed"
-                          visible="false" managed="false">
-                        <Button fx:id="sessionSidebarExpandBtn" text="&lt;"
-                                onAction="#onExpandSessionSidebar"
-                                styleClass="session-sidebar-toggle-btn"/>
-                    </VBox>
-                </StackPane>
+                <fx:include source="snapshot_review_sidebar.fxml" fx:id="snapshotReviewRail"/>
             </SplitPane>
 
         </SplitPane>

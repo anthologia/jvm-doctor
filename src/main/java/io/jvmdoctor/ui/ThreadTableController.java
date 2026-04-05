@@ -67,6 +67,7 @@ public class ThreadTableController implements Initializable {
     private Set<String> threadNameFilter = null;
     private String frameFilter = null;
     private String poolFilter = null;
+    private Boolean virtualFilter = null; // null=all, true=virtual only, false=platform only
     private Set<String> deadlockedThreadNames = Set.of();
 
     private final Map<String, String> poolByThread = new HashMap<>();
@@ -121,7 +122,7 @@ public class ThreadTableController implements Initializable {
                 if (empty || state == null) {
                     setText(null);
                 } else {
-                    setText(state);
+                    setText(ThreadStateLabels.display(state));
                     switch (state.toUpperCase()) {
                         case "BLOCKED"       -> getStyleClass().add("state-blocked");
                         case "WAITING"       -> getStyleClass().add("state-waiting");
@@ -156,7 +157,14 @@ public class ThreadTableController implements Initializable {
                 }
 
                 primary.setText(thread.name());
-                secondary.setText("#" + thread.threadId() + "  ·  depth " + thread.stackDepth());
+                String meta = "#" + thread.threadId() + "  ·  depth " + thread.stackDepth();
+                if (thread.isVirtual()) {
+                    meta += "  ·  virtual";
+                    if (thread.carrierThread() != null) {
+                        meta += " @" + thread.carrierThread();
+                    }
+                }
+                secondary.setText(meta);
                 setText(null);
                 setGraphic(box);
                 setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
@@ -286,6 +294,7 @@ public class ThreadTableController implements Initializable {
         threadNameFilter = null;
         frameFilter = null;
         poolFilter = null;
+        virtualFilter = null;
         problemOnlyBtn.setSelected(false);
         filterField.clear();
         rebuildStateChips(threads);
@@ -317,6 +326,7 @@ public class ThreadTableController implements Initializable {
         poolFilter = null;
         threadNameFilter = null;
         this.frameFilter = frameKey;
+        virtualFilter = null;
         selectedStates.clear();
         problemOnlyBtn.setSelected(false);
         syncChipsToSelectedStates();
@@ -331,6 +341,7 @@ public class ThreadTableController implements Initializable {
         threadNameFilter = null;
         frameFilter = null;
         poolFilter = null;
+        virtualFilter = null;
         selectedStates.clear();
         problemOnlyBtn.setSelected(false);
         if (states != null) {
@@ -344,6 +355,7 @@ public class ThreadTableController implements Initializable {
         threadNameFilter = (threadNames == null || threadNames.isEmpty()) ? null : new HashSet<>(threadNames);
         frameFilter = null;
         poolFilter = null;
+        virtualFilter = null;
         selectedStates.clear();
         problemOnlyBtn.setSelected(false);
         syncChipsToSelectedStates();
@@ -358,6 +370,7 @@ public class ThreadTableController implements Initializable {
         poolFilter = poolName;
         threadNameFilter = null;
         frameFilter = null;
+        virtualFilter = null;
         selectedStates.clear();
         problemOnlyBtn.setSelected(false);
         syncChipsToSelectedStates();
@@ -368,6 +381,7 @@ public class ThreadTableController implements Initializable {
         threadNameFilter = null;
         frameFilter = null;
         poolFilter = null;
+        virtualFilter = null;
         selectedStates.clear();
         problemOnlyBtn.setSelected(false);
         if (!filterField.getText().isBlank()) {
@@ -483,7 +497,7 @@ public class ThreadTableController implements Initializable {
                 .distinct()
                 .sorted(Comparator.comparingInt(s -> STATE_PRIORITY.getOrDefault(s, 99)))
                 .forEach(state -> {
-                    ToggleButton chip = new ToggleButton(state);
+                    ToggleButton chip = new ToggleButton(ThreadStateLabels.display(state));
                     chip.setUserData(state);
                     chip.getStyleClass().add("filter-chip");
                     switch (state.toUpperCase()) {
@@ -500,6 +514,19 @@ public class ThreadTableController implements Initializable {
                     });
                     stateFilterBox.getChildren().add(chip);
                 });
+
+        // Add virtual thread filter chip if any virtual threads exist
+        boolean hasVirtual = threads.stream().anyMatch(ThreadInfo::isVirtual);
+        if (hasVirtual) {
+            ToggleButton virtualChip = new ToggleButton("VIRTUAL");
+            virtualChip.setUserData("__VIRTUAL__");
+            virtualChip.getStyleClass().addAll("filter-chip", "chip-virtual");
+            virtualChip.selectedProperty().addListener((obs, wasOn, isOn) -> {
+                virtualFilter = isOn ? Boolean.TRUE : null;
+                applyFilter(filterField.getText());
+            });
+            stateFilterBox.getChildren().add(virtualChip);
+        }
     }
 
     private void syncChipsToSelectedStates() {
@@ -509,7 +536,11 @@ public class ThreadTableController implements Initializable {
                 .map(n -> (ToggleButton) n)
                 .forEach(tb -> {
                     String state = (String) tb.getUserData();
-                    if (state != null) tb.setSelected(selectedStates.contains(state.toUpperCase()));
+                    if ("__VIRTUAL__".equals(state)) {
+                        tb.setSelected(Boolean.TRUE.equals(virtualFilter));
+                    } else if (state != null) {
+                        tb.setSelected(selectedStates.contains(state.toUpperCase()));
+                    }
                 });
         syncingStateControls = false;
     }
@@ -532,7 +563,8 @@ public class ThreadTableController implements Initializable {
                     .anyMatch(f -> (f.className() + "." + f.methodName()).equals(frameFilter)));
             boolean nameMatch = threadNameFilter == null || threadNameFilter.contains(t.name());
             boolean poolMatch = poolFilter == null || poolFilter.equals(poolByThread.get(t.name()));
-            return stateMatch && textMatch && frameMatch && nameMatch && poolMatch;
+            boolean virtualMatch = virtualFilter == null || t.isVirtual() == virtualFilter;
+            return stateMatch && textMatch && frameMatch && nameMatch && poolMatch && virtualMatch;
         });
         updateStats();
         updateScopeSummary();
@@ -551,7 +583,12 @@ public class ThreadTableController implements Initializable {
 
         StringBuilder sb = new StringBuilder();
         sb.append("\"").append(selected.name()).append("\"").append("\n");
-        sb.append("#").append(selected.threadId()).append("  ").append(selected.state()).append("\n");
+        sb.append("#").append(selected.threadId()).append("  ").append(selected.state());
+        if (selected.isVirtual()) sb.append("  [virtual]");
+        sb.append("\n");
+        if (selected.isVirtual() && selected.carrierThread() != null) {
+            sb.append("Carrier: ").append(selected.carrierThread()).append("\n");
+        }
         sb.append("Pool: ").append(displayPoolName(selected)).append("\n");
 
         String signals = buildSignals(selected);
@@ -611,6 +648,7 @@ public class ThreadTableController implements Initializable {
         return threadNameFilter != null
                 || frameFilter != null
                 || poolFilter != null
+                || virtualFilter != null
                 || !selectedStates.isEmpty()
                 || (filterField.getText() != null && !filterField.getText().isBlank());
     }
@@ -627,6 +665,7 @@ public class ThreadTableController implements Initializable {
         }
         if (!selectedStates.isEmpty()) {
             scopes.add("states " + selectedStates.stream().sorted(Comparator.comparingInt(s -> STATE_PRIORITY.getOrDefault(s, 99)))
+                    .map(ThreadStateLabels::display)
                     .collect(Collectors.joining(", ")));
         }
         if (poolFilter != null) {
@@ -640,12 +679,20 @@ public class ThreadTableController implements Initializable {
                     ? "thread " + threadNameFilter.iterator().next()
                     : threadNameFilter.size() + " selected threads");
         }
+        if (virtualFilter != null) {
+            scopes.add(virtualFilter ? "virtual threads" : "platform threads");
+        }
 
         boolean hasScope = !scopes.isEmpty();
         scopeSummaryBox.setVisible(hasScope);
         scopeSummaryBox.setManaged(hasScope);
         scopeLabel.setText(hasScope ? "Active filters: " + String.join("  •  ", scopes) : "");
         clearFiltersBtn.setDisable(!hasScope);
+    }
+
+    public void selectAndRevealThread(String threadName) {
+        clearQuickFilters();
+        selectThread(threadName);
     }
 
     private void selectThread(String threadName) {

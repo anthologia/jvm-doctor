@@ -18,7 +18,7 @@ public class JstackParser {
 
     // "Thread-0" #12 daemon prio=5 os_prio=0 cpu=0.00ms elapsed=0.10s tid=0x0000... nid=0x... waiting on condition  [0x...]
     private static final Pattern THREAD_HEADER = Pattern.compile(
-            "^\"(.+?)\"\\s+(?:#(\\d+)\\s+)?(daemon\\s+)?(?:prio=(\\d+)\\s+)?.*(?:tid=\\S+)?.*$");
+            "^\"(.*?)\"\\s+(?:#(\\d+)\\s+)?(daemon\\s+)?(?:prio=(\\d+)\\s+)?.*(?:tid=\\S+)?.*$");
 
     // java.lang.Thread.State: BLOCKED (on object monitor)
     private static final Pattern THREAD_STATE = Pattern.compile(
@@ -33,6 +33,11 @@ public class JstackParser {
     //  - waiting on <0x000000076b572f00> (a java.lang.Object)
     private static final Pattern LOCK_LINE = Pattern.compile(
             "^\\s+- (locked|waiting to lock|waiting on|parking to wait for)\\s+<(\\S+)>\\s+\\(a ([^)]+)\\)\\s*$");
+
+    // Virtual thread carrier annotation:
+    //   ^-- Continuation for virtual thread VirtualThread[#42]/runnable@ForkJoinPool-1-worker-1
+    private static final Pattern CARRIER_LINE = Pattern.compile(
+            "^\\s+\\^--.*@(\\S+)\\s*$");
 
     // Timestamp: 2024-01-01 12:00:00
     private static final Pattern TIMESTAMP_LINE = Pattern.compile(
@@ -103,6 +108,7 @@ public class JstackParser {
         Matcher hm = THREAD_HEADER.matcher(header);
         String name = hm.matches() ? hm.group(1) : header.replaceAll("\"", "").trim();
         boolean daemon = header.contains(" daemon ");
+        boolean virtual = header.contains(" virtual");
         int priority = 5;
         long tid = -1;
 
@@ -118,6 +124,7 @@ public class JstackParser {
         LockInfo waitingOnLock = null;
         List<LockInfo> heldLocks = new ArrayList<>();
         List<StackFrame> frames = new ArrayList<>();
+        String carrierThread = null;
 
         for (int i = 1; i < lines.size(); i++) {
             String line = lines.get(i);
@@ -150,9 +157,17 @@ public class JstackParser {
                 } else {
                     waitingOnLock = li;
                 }
+                continue;
+            }
+
+            // Carrier thread annotation for virtual threads
+            Matcher cm = CARRIER_LINE.matcher(line);
+            if (cm.matches()) {
+                carrierThread = cm.group(1);
             }
         }
 
-        return new ThreadInfo(name, tid, state, priority, daemon, waitingOnLock, heldLocks, frames);
+        return new ThreadInfo(name, tid, state, priority, daemon, virtual, carrierThread,
+                waitingOnLock, heldLocks, frames);
     }
 }

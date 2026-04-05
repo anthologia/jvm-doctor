@@ -84,6 +84,49 @@ class JstackParserTest {
         assertTrue(dump.threads().isEmpty());
     }
 
+    @Test
+    void parsesVirtualThread() {
+        ThreadDump dump = parser.parse(VIRTUAL_THREAD_DUMP);
+        assertEquals(2, dump.threads().size());
+
+        ThreadInfo vt = dump.threads().stream()
+                .filter(t -> t.name().equals(""))
+                .findFirst().orElseThrow();
+        assertTrue(vt.isVirtual());
+        assertEquals("ForkJoinPool-1-worker-1", vt.carrierThread());
+        assertEquals("WAITING", vt.state());
+
+        ThreadInfo pt = dump.threads().stream()
+                .filter(t -> t.name().equals("main"))
+                .findFirst().orElseThrow();
+        assertFalse(pt.isVirtual());
+        assertNull(pt.carrierThread());
+    }
+
+    @Test
+    void platformThreadsAreNotVirtual() {
+        ThreadDump dump = parser.parse(SAMPLE_DUMP);
+        assertTrue(dump.threads().stream().noneMatch(ThreadInfo::isVirtual));
+        assertEquals(0, dump.virtualThreadCount());
+        assertEquals(3, dump.platformThreadCount());
+    }
+
+    private static final String VIRTUAL_THREAD_DUMP = """
+            2024-06-01 10:00:00
+            Full thread dump OpenJDK 64-Bit Server VM (21 mixed mode):
+
+            "main" #1 prio=5 os_prio=0 tid=0x00000001 nid=0x100 runnable
+               java.lang.Thread.State: RUNNABLE
+            \tat com.example.Main.main(Main.java:10)
+
+            "" #42 virtual
+               java.lang.Thread.State: WAITING (parking)
+            \tat jdk.internal.misc.Unsafe.park(Native Method)
+            \tat java.util.concurrent.locks.LockSupport.park(LockSupport.java:371)
+            \tat com.example.VirtualWorker.process(VirtualWorker.java:25)
+            \t^-- Continuation for virtual thread VirtualThread[#42]/runnable@ForkJoinPool-1-worker-1
+            """;
+
     private static final String SAMPLE_DUMP = """
             2024-01-01 12:00:00
             Full thread dump OpenJDK 64-Bit Server VM (21 mixed mode):

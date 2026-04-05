@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox xmlns="http://javafx.com/javafx/21"
+      xmlns:fx="http://javafx.com/fxml/1"
+      fx:controller="io.jvmdoctor.ui.FlameGraphController"
+      spacing="0">
+
+    <!-- Toolbar -->
+    <VBox spacing="0">
+        <HBox spacing="8" alignment="CENTER_LEFT" styleClass="threads-toolbar">
+            <padding><Insets top="6" right="10" bottom="6" left="10"/></padding>
+            <ToggleButton fx:id="hideJdkToggle" text="Hide JDK" styleClass="filter-chip"
+                          onAction="#onToggleHideJdk"/>
+            <ToggleButton fx:id="reverseToggle" text="Reverse" styleClass="filter-chip"
+                          onAction="#onToggleReverse"/>
+            <Separator orientation="VERTICAL"/>
+            <ToggleButton fx:id="colorByStateToggle" text="Color by State" styleClass="filter-chip"
+                          onAction="#onToggleColorMode"/>
+            <Separator orientation="VERTICAL"/>
+            <Button fx:id="resetZoomBtn" text="Reset Zoom" styleClass="toolbar-btn, compact-action-btn"
+                    onAction="#onResetZoom" disable="true"/>
+            <Separator orientation="VERTICAL"/>
+            <TextField fx:id="searchField" promptText="Search frames…"
+                       onAction="#onSearch" prefColumnCount="20"/>
+            <Label fx:id="searchResultLabel" text="" styleClass="status-label"/>
+        </HBox>
+
+        <HBox fx:id="zoomBreadcrumbBar" spacing="6" alignment="CENTER_LEFT"
+              managed="false" visible="false" styleClass="flame-breadcrumb-bar">
+            <padding><Insets top="0" right="10" bottom="8" left="10"/></padding>
+            <Label text="Zoom" styleClass="filter-label"/>
+            <HBox fx:id="zoomBreadcrumbBox" spacing="4" alignment="CENTER_LEFT"/>
+        </HBox>
+
+        <FlowPane hgap="6" vgap="6" styleClass="flame-filter-bar">
+            <padding><Insets top="0" right="10" bottom="8" left="10"/></padding>
+            <Label text="Thread Scope" styleClass="filter-label"/>
+            <ToggleButton fx:id="problemOnlyToggle" text="Problem Only"
+                          styleClass="filter-chip, chip-problem"
+                          onAction="#onToggleProblemOnly"/>
+            <ToggleButton fx:id="blockedToggle" text="BLOCKED"
+                          styleClass="filter-chip, chip-blocked"
+                          onAction="#onStateScopeChanged"/>
+            <ToggleButton fx:id="waitingToggle" text="WAITING"
+                          styleClass="filter-chip, chip-waiting"
+                          onAction="#onStateScopeChanged"/>
+            <ToggleButton fx:id="timedWaitingToggle" text="TIMED_WAITING"
+                          styleClass="filter-chip, chip-timed-waiting"
+                          onAction="#onStateScopeChanged"/>
+            <ToggleButton fx:id="runnableToggle" text="RUNNABLE"
+                          styleClass="filter-chip, chip-runnable"
+                          onAction="#onStateScopeChanged"/>
+            <ToggleButton fx:id="virtualOnlyToggle" text="VIRTUAL"
+                          styleClass="filter-chip, chip-virtual"
+                          onAction="#onToggleVirtualOnly"/>
+            <ToggleButton fx:id="platformOnlyToggle" text="PLATFORM"
+                          styleClass="filter-chip, chip-platform"
+                          onAction="#onTogglePlatformOnly"/>
+            <Label fx:id="scopeStatsLabel" text="" styleClass="status-label flame-scope-label"/>
+        </FlowPane>
+    </VBox>
+    <Separator/>
+
+    <!-- Main area: canvas + detail pane -->
+    <SplitPane fx:id="mainSplit" orientation="VERTICAL" dividerPositions="0.7"
+               VBox.vgrow="ALWAYS" styleClass="flame-split">
+
+        <!-- Canvas -->
+        <StackPane fx:id="canvasContainer" minHeight="80"
+                   style="-fx-background-color: #1e1e2e;"/>
+
+        <!-- Frame detail pane -->
+        <VBox fx:id="detailPane" spacing="0" styleClass="flame-detail-pane"
+              minHeight="80" prefHeight="180">
+
+            <!-- Detail header: frame name + summary -->
+            <HBox spacing="10" alignment="CENTER_LEFT" styleClass="flame-detail-header">
+                <padding><Insets top="8" right="12" bottom="8" left="12"/></padding>
+                <Label fx:id="detailFrameLabel" text="Hover a frame to inspect"
+                       styleClass="flame-detail-title" maxWidth="500" textOverrun="ELLIPSIS"/>
+                <Label fx:id="detailCountLabel" text="" styleClass="flame-detail-count"/>
+                <Label fx:id="detailSelfLabel" text="" styleClass="flame-detail-count"/>
+                <Region HBox.hgrow="ALWAYS"/>
+                <Button fx:id="showInTopFramesBtn" text="Top Frames"
+                        styleClass="toolbar-btn, toolbar-btn-subtle, compact-action-btn"
+                        onAction="#onShowCurrentFrameInTopFrames" disable="true"/>
+                <Button fx:id="showInThreadsBtn" text="Threads"
+                        styleClass="toolbar-btn, toolbar-btn-subtle, compact-action-btn"
+                        onAction="#onShowCurrentFrameInThreads" disable="true"/>
+                <Button fx:id="collapseDetailBtn" text="-"
+                        styleClass="toolbar-btn, toolbar-btn-subtle, compact-action-btn, flame-collapse-btn"
+                        onAction="#onHideDetails"/>
+            </HBox>
+
+            <!-- State distribution bar -->
+            <HBox fx:id="stateBar" styleClass="flame-state-bar" minHeight="14" prefHeight="14" maxHeight="14">
+                <padding><Insets top="0" right="12" bottom="0" left="12"/></padding>
+            </HBox>
+
+            <!-- State legend row -->
+            <FlowPane fx:id="stateLegendPane" hgap="12" vgap="4" styleClass="flame-state-legend">
+                <padding><Insets top="6" right="12" bottom="4" left="12"/></padding>
+            </FlowPane>
+
+            <!-- Thread list -->
+            <ScrollPane fitToWidth="true" VBox.vgrow="ALWAYS"
+                        styleClass="flame-thread-scroll">
+                <FlowPane fx:id="threadListPane" hgap="6" vgap="4" prefWrapLength="800">
+                    <padding><Insets top="4" right="12" bottom="8" left="12"/></padding>
+                </FlowPane>
+            </ScrollPane>
+        </VBox>
+    </SplitPane>
+
+    <HBox alignment="CENTER_LEFT" styleClass="flame-hover-bar">
+        <padding><Insets top="6" right="10" bottom="6" left="10"/></padding>
+        <Label fx:id="tooltipLabel" text="Hover a frame to inspect"
+               styleClass="status-label flame-hover-label"
+               wrapText="false" maxWidth="1000" textOverrun="ELLIPSIS"/>
+    </HBox>
+</VBox>

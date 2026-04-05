@@ -136,6 +136,21 @@ public class TopFramesController implements Initializable {
         this.onFrameClicked = handler;
     }
 
+    public void highlightFrame(String frameKey) {
+        if (frameKey == null || frameKey.isBlank()) {
+            framesTable.getSelectionModel().clearSelection();
+            return;
+        }
+        for (FrameStat frame : sortedFrames) {
+            if (frame.frameKey().equals(frameKey)) {
+                framesTable.getSelectionModel().select(frame);
+                framesTable.scrollTo(frame);
+                return;
+            }
+        }
+        framesTable.getSelectionModel().clearSelection();
+    }
+
     private void applyFilter() {
         String lower = filterField.getText() == null ? "" : filterField.getText().toLowerCase();
         boolean hideJdk = hideJdkFramesCheck.isSelected();

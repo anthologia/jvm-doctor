@@ -126,6 +126,10 @@
                             <fx:include source="dump_diff.fxml" fx:id="dumpDiff"/>
                         </Tab>
 
+                        <Tab fx:id="flameGraphTab" text="Flame Graph">
+                            <fx:include source="flame_graph.fxml" fx:id="flameGraph"/>
+                        </Tab>
+
                         <Tab fx:id="rawTab" text="Raw Dump">
                             <VBox spacing="0">
                                 <HBox spacing="8" alignment="CENTER_LEFT" styleClass="raw-search-bar">

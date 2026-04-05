@@ -82,7 +82,7 @@ public class ThreadPoolController implements Initializable {
                 super.updateItem(state, empty);
                 getStyleClass().removeAll("state-blocked", "state-waiting", "state-runnable");
                 if (empty || state == null) { setText(null); return; }
-                setText(state);
+                setText(ThreadStateLabels.display(state));
                 switch (state) {
                     case "Contended", "Starved" -> getStyleClass().add("state-blocked");
                     case "Busy", "Active" -> getStyleClass().add("state-runnable");
@@ -97,7 +97,7 @@ public class ThreadPoolController implements Initializable {
                 super.updateItem(state, empty);
                 getStyleClass().removeAll("state-blocked", "state-waiting", "state-runnable");
                 if (empty || state == null) { setText(null); return; }
-                setText(state);
+                setText(ThreadStateLabels.display(state));
                 switch (state) {
                     case "BLOCKED"       -> getStyleClass().add("state-blocked");
                     case "WAITING",
@@ -188,7 +188,7 @@ public class ThreadPoolController implements Initializable {
 
     private String formatThread(ThreadInfo t) {
         StringBuilder sb = new StringBuilder();
-        sb.append("[").append(t.state()).append("]  ").append(t.name());
+        sb.append("[").append(ThreadStateLabels.display(t.state())).append("]  ").append(t.name());
         if (t.waitingOnLock() != null)
             sb.append("  ← ").append(t.waitingOnLock());
         if (t.stackFrames() != null && !t.stackFrames().isEmpty()) {

@@ -106,6 +106,10 @@ public class MainController implements Initializable {
     @FXML private TimelineController timelineController;
     @FXML private Tab timelineTab;
 
+    // --- Flame Graph (injected sub-controller) ---
+    @FXML private FlameGraphController flameGraphController;
+    @FXML private Tab flameGraphTab;
+
     // --- Raw tab ---
     @FXML private TextArea rawTextArea;
     @FXML private TextField rawSearchField;
@@ -139,7 +143,7 @@ public class MainController implements Initializable {
     private final ThreadPoolGrouper poolGrouper = new ThreadPoolGrouper();
     private final MultiDumpAnalyzer multiDumpAnalyzer = new MultiDumpAnalyzer();
     private static final List<String> NAV_ITEMS = List.of(
-            "Threads", "Deadlock / Issues", "Top Frames", "Thread Pools", "Raw Dump");
+            "Threads", "Deadlock / Issues", "Top Frames", "Thread Pools", "Flame Graph", "Raw Dump");
     private record HotLockFocus(String lockLabel, long waiterCount, Set<String> affectedThreadNames, String ownerThreadName) {
         static HotLockFocus empty() {
             return new HotLockFocus("", 0, Set.of(), null);
@@ -283,6 +287,7 @@ public class MainController implements Initializable {
             case "Deadlock / Issues" -> deadlockTab;
             case "Top Frames" -> topFramesTab;
             case "Thread Pools" -> threadPoolTab;
+            case "Flame Graph" -> flameGraphTab;
             case "Raw Dump" -> rawTab;
             default -> null;
         };
@@ -303,6 +308,9 @@ public class MainController implements Initializable {
         }
         if (tab == threadPoolTab) {
             return "Thread Pools";
+        }
+        if (tab == flameGraphTab) {
+            return "Flame Graph";
         }
         if (tab == rawTab) {
             return "Raw Dump";
@@ -465,6 +473,25 @@ public class MainController implements Initializable {
         deadlockViewController.setReports(result.reports(), result.dump());
         topFramesController.setFrames(topFramesAnalyzer.topFrames(result.dump(), 100));
         threadPoolController.setPools(poolGrouper.group(result.dump()));
+        flameGraphController.setDump(result.dump());
+        flameGraphController.setOnFrameFocused(topFramesController::highlightFrame);
+        flameGraphController.setOnFrameFilterRequested(frameKey -> {
+            clearSummarySelectionVisuals();
+            topFramesController.highlightFrame(frameKey);
+            threadTableController.filterByFrame(frameKey);
+            contentTabs.getSelectionModel().select(threadsTab);
+            updateStatus("Filtered to threads containing: " + frameKey);
+        });
+        flameGraphController.setOnRevealInTopFramesRequested(frameKey -> {
+            topFramesController.highlightFrame(frameKey);
+            contentTabs.getSelectionModel().select(topFramesTab);
+            updateStatus("Revealed frame in Top Frames: " + frameKey);
+        });
+        flameGraphController.setOnThreadSelected(threadName -> {
+            contentTabs.getSelectionModel().select(threadsTab);
+            threadTableController.selectAndRevealThread(threadName);
+            updateStatus("Navigated to thread: " + threadName);
+        });
         topFramesController.setOnFrameClicked(frameKey -> {
             clearSummarySelectionVisuals();
             threadTableController.filterByFrame(frameKey);
@@ -919,7 +946,7 @@ public class MainController implements Initializable {
         swatch.getStyleClass().add("state-legend-swatch");
         swatch.setStyle("-fx-background-color: " + colorForState(state) + ";");
 
-        Label stateLabel = new Label(state);
+        Label stateLabel = new Label(ThreadStateLabels.display(state));
         stateLabel.getStyleClass().add("state-legend-label");
 
         Label countLabel = new Label(String.valueOf((long) data.getPieValue()));
@@ -935,7 +962,7 @@ public class MainController implements Initializable {
     }
 
     private String formatStateLabel(String state, long count) {
-        return state + " (" + count + ")";
+        return ThreadStateLabels.display(state) + " (" + count + ")";
     }
 
     private String extractStateName(String label) {
@@ -958,10 +985,19 @@ public class MainController implements Initializable {
                 ? poolIssueFocus.poolCount() + " unhealthy pool(s)"
                 : "No unhealthy pools";
 
+        String virtualPart = dump.hasVirtualThreads()
+                ? dump.virtualThreadCount() + " virtual / " + dump.platformThreadCount() + " platform"
+                : "";
+
+        StringBuilder hint = new StringBuilder();
+        hint.append(criticalPart).append("  ·  ").append(poolPart).append("  ·  ").append(hotspotPart);
         if (warningFindings > 0) {
-            return criticalPart + "  ·  " + poolPart + "  ·  " + hotspotPart + "  ·  " + warningFindings + " warning(s)";
+            hint.append("  ·  ").append(warningFindings).append(" warning(s)");
         }
-        return criticalPart + "  ·  " + poolPart + "  ·  " + hotspotPart;
+        if (!virtualPart.isEmpty()) {
+            hint.append("  ·  ").append(virtualPart);
+        }
+        return hint.toString();
     }
 
     private HotLockFocus findHotLockFocus(ThreadDump dump) {

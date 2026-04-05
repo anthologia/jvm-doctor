@@ -143,7 +143,7 @@ public class TimelineController implements Initializable {
                 Rectangle cell = makeCell(state);
                 String topFrame = series.topFrameAt(col);
                 String tooltip = analysis.snapshots().get(col).label()
-                        + "\nState: " + (state == null ? "absent" : state)
+                        + "\nState: " + (state == null ? "absent" : ThreadStateLabels.display(state))
                         + "\nTop frame: " + (topFrame == null || topFrame.isBlank() ? "—" : topFrame);
                 Tooltip.install(cell, new Tooltip(tooltip));
                 heatmapGrid.add(cell, col + 3, row + 1);
@@ -262,7 +262,7 @@ public class TimelineController implements Initializable {
     }
 
     private String threadTooltip(ThreadSeries series) {
-        return "Dominant state: " + series.dominantState()
+        return "Dominant state: " + ThreadStateLabels.display(series.dominantState())
                 + "\nSeen: " + series.seenLabel(analysis.snapshotCount())
                 + "\nTop frame: " + series.displayTopFrame();
     }
